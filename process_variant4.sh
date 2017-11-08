@@ -146,7 +146,7 @@ grep -v "^>" "polished.fasta" | tr -d '\n' > "middle.txt"
 samtools faidx "$OT/hg38.fa" "$CHROM:$(($START-5000))-$(($START))" | grep -v "^>" | tr -d '\n' > "left-flank.txt"
 samtools faidx "$OT/hg38.fa" "$CHROM:$(($END))-$(($END+5000))"     | grep -v "^>" | tr -d '\n' > "right-flank.txt"
 cat "left-flank.txt" "middle.txt" "right-flank.txt" | fold -w 70 >> "final.fa"
-echo "\n" >> "final.fa"
+echo -e "\n" >> "final.fa"
 
 # echo "## align polished sequence with minimap"
 # $OT/programs/minimap2-2.3_x64-linux/minimap2 -ax map-ont "$OT/hg38.mmi" "final.fa" > "final.sam"
