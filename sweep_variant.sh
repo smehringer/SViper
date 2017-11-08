@@ -234,8 +234,8 @@ $EXEC_DIR/sweep_sequence.sh $CONFIG $REF $ILLUMINA1 $ILLUMINA2
 # cat variant information into id for easier match up
 echo -e ">final_""$CHROM""_""$SV_START""_""$(cut -f 3 sv.$CHROM.$SV_START.vcf)" > "final.fa"
 grep -v "^>" "polished.fasta" | tr -d '\n' > "middle.txt"
-samtools faidx "$OT/hg38.fa" "$CHROM:$(($START-5000))-$(($START))" | grep -v "^>" | tr -d '\n' > "left-flank.txt"
-samtools faidx "$OT/hg38.fa" "$CHROM:$(($END))-$(($END+5000))"     | grep -v "^>" | tr -d '\n' > "right-flank.txt"
+samtools faidx "$REFERENCE" "$CHROM:$(($START-5000))-$(($START))" | grep -v "^>" | tr -d '\n' > "left-flank.txt"
+samtools faidx "$REFERENCE" "$CHROM:$(($END))-$(($END+5000))"     | grep -v "^>" | tr -d '\n' > "right-flank.txt"
 cat "left-flank.txt" "middle.txt" "right-flank.txt" | fold -w 70 >> "final.fa"
 echo -e "\n" >> "final.fa"
 
