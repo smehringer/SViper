@@ -22,7 +22,7 @@ fi
 
 if [ ! -f "$CONFIG" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find file $CONFIG."
+    echo "[ERROR - sweep_variant.sh] Could not find file $CONFIG."
     exit 1
 fi
 
@@ -47,7 +47,7 @@ echo -e "======================================================================"
 SV_END_CHROM=$(grep "^$CHROM\s$SV_START" $VCF_FILE | sed -e "s/.*CHR2=\([a-Z0-9]*\).*/\1/g")
 if [ ! "$SV_END_CHROM" == "$CHROM" ]
     then
-    echo "[ERROR process_variant.sh] polishing variants where CHR != CHR2 ($CHROM != $SV_END_CHROM) is currently not supprted."
+    echo "[ERROR sweep_variant.sh] polishing variants where CHR != CHR2 ($CHROM != $SV_END_CHROM) is currently not supprted."
     exit 1
 fi
 SV_END=$(grep "^$CHROM\s$SV_START" $VCF_FILE | sed -e "s/.*END=\([0-9]*\).*/\1/g" )
@@ -132,7 +132,7 @@ REF="consensus.fa" # The current "genome" reference (read to polish)
 ILLUMINA1="illumina.paired1.fastq"
 ILLUMINA2="illumina.paired2.fastq"
 
-$EXEC_DIR/process_sequence.sh $CONFIG $REF $ILLUMINA1 $ILLUMINA2
+$EXEC_DIR/sweep_sequence.sh $CONFIG $REF $ILLUMINA1 $ILLUMINA2
 
 # Output: polished.fasta
 

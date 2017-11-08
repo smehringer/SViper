@@ -3,7 +3,7 @@
 export EXEC_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 if [ "$#" -ne 1 ]; then
-    echo "[ERROR - process_sample.sh] Config File must be provided as first argument!"
+    echo "[ERROR - sweep_sample.sh] Config File must be provided as first argument!"
 
     if [ ! -f "polishing.config" ] # if default file does not already exist
         then
@@ -32,7 +32,7 @@ fi
 
 if [ ! -f "$CONFIG" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find file $CONFIG."
+    echo "[ERROR - sweep_sample.sh] Could not find file $CONFIG."
     exit 1
 fi
 
@@ -52,30 +52,30 @@ fi
 
 # Check executable files
 # -----------------------
-if [ ! -f "$EXEC_DIR/process_variant.sh" ]
+if [ ! -f "$EXEC_DIR/sweep_variant.sh" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find executable $EXEC_DIR/process_variant.sh."\
+    echo "[ERROR - sweep_sample.sh] Could not find executable $EXEC_DIR/sweep_variant.sh."\
          " Please ensure correct file structure of the polishing toolset."
     exit 1
 fi
 
 if [ ! -f "$EXEC_DIR/compute_region_positions_from_cigar" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find executable $EXEC_DIR/compute_region_positions_from_cigar (CPP)."\
+    echo "[ERROR - sweep_sample.sh] Could not find executable $EXEC_DIR/compute_region_positions_from_cigar (CPP)."\
          " Please ensure correct file structure of the polishing toolset."
     exit 1
 fi
 
 if [ ! -f "$EXEC_DIR/numtMateHunt" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find executable $EXEC_DIR/numtMateHunt (CPP)."\
+    echo "[ERROR - sweep_sample.sh] Could not find executable $EXEC_DIR/numtMateHunt (CPP)."\
          " Please ensure correct file structure of the polishing toolset."
     exit 1
 fi
 
 if [ ! -f "$EXEC_DIR/pilon-1.22.jar" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find executable $EXEC_DIR/pilon-1.22.jar (CPP)."\
+    echo "[ERROR - sweep_sample.sh] Could not find executable $EXEC_DIR/pilon-1.22.jar (CPP)."\
          " Please ensure correct file structure of the polishing toolset."
     exit 1
 fi
@@ -84,28 +84,28 @@ fi
 # --------------------------------------------
 if [ ! -f "$ONT_BAM_FILE" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find file $ONT_BAM_FILE."\
+    echo "[ERROR - sweep_sample.sh] Could not find file $ONT_BAM_FILE."\
          " Please correct filename in polishing.config."
     exit 1
 fi
 
 if [ ! -f "$BAMFILE_ILLUMINA" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find file $BAMFILE_ILLUMINA."\
+    echo "[ERROR - sweep_sample.sh] Could not find file $BAMFILE_ILLUMINA."\
     " Please correct filename in polishing.config."
     exit 1
 fi
 
 if [ ! -f "$VCF_FILE" ]
     then
-    echo "[ERROR - process_sample.sh] Could not find file $VCF_FILE."\
+    echo "[ERROR - sweep_sample.sh] Could not find file $VCF_FILE."\
     " Please correct filename in polishing.config."
     exit 1
 fi
 
 if [ -z "$REGION_AROUND_VARIANT" ]
     then
-    echo "[ERROR - process_sample.sh] Variable REGION_AROUND_VARIANT cannot be empty."\
+    echo "[ERROR - sweep_sample.sh] Variable REGION_AROUND_VARIANT cannot be empty."\
     " Please correct variable in polishing.config."
     exit 1
 fi
@@ -161,7 +161,7 @@ while IFS= read -r line
 	echo $RNAMES | tr "," "\n" > "supporting_reads_ids.txt"
 
 	# do the polishing
-	$EXEC_DIR/process_variant4.sh "$CONFIG" "$CHROM" "$POS" &>> $LOG
+	$EXEC_DIR/sweep_variant.sh "$CONFIG" "$CHROM" "$POS" &>> $LOG
 
 	if [ $? -eq 0 ]
 		then
