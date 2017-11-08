@@ -12,7 +12,6 @@ CXX=g++
 CC=$(CXX)
 
 CXXFLAGS+=-std=c++14
-CXXFLAGS+=-pg
 
 # Set this to include SeqAn libraries, either system wide
 # or download into current folder and set to .
