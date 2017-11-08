@@ -104,7 +104,7 @@ if [ -s "aberrant-short-reads.sam" ] # if file not empty
     cut -f 1,3,7,8 "aberrant-short-reads.sam" |  awk '{ if ($3 == "=") {print $1,$2,$4;} else {print $1,$3,$4;} }' > matesToHunt.txt 2>> $LOG
     samtools view -H "$BAMFILE_ILLUMINA" -o "dummy.bam" 2>> $LOG # mate hunter needs a bam file to read and copy from which is not neeed here
     # samtools view -H "$BAMFILE_ILLUMINA_HEADER" -o "mates.bam"
-    echo "--- -> Mate Hunting.." && "$EXEC_DIR/numtMateHunt" matesToHunt.txt "$BAMFILE_ILLUMINA" "$BAMFILE_ILLUMINA.bai" "dummy.bam" "mates.bam"  | tee -a $LOG
+    echo "--- -> Mate Hunting.." && "$EXEC_DIR/utilities/numtMateHunt" matesToHunt.txt "$BAMFILE_ILLUMINA" "$BAMFILE_ILLUMINA.bai" "dummy.bam" "mates.bam"  | tee -a $LOG
     samtools view mates.bam >> "chosen.short.reads.sorted_by_name.sam" 2>> $LOG
     sort "chosen.short.reads.sorted_by_name.sam" | uniq > "tmp.sam" 2>> $LOG
     rm "chosen.short.reads.sorted_by_name.sam" "aberrant-short-reads.sam" "dummy.bam" 2>> $LOG # "mates.bam" "matesToHunt.txt"
@@ -119,7 +119,7 @@ cat "$BAMFILE_ILLUMINA_HEADER" "chosen.short.reads.sorted_by_name.sam" | \
 #                             Compute conensus
 # -----------------------------------------------------------------------------
 grep "^$CHROM\s$SV_START" $VCF_FILE > "sv.$CHROM.$SV_START.vcf"
-$EXEC_DIR/build_consensus_from_all_reads "chosen.long.reads.sorted_by_name.sam" "sv.$CHROM.$SV_START.vcf"
+$EXEC_DIR/utilities/build_consensus_from_all_reads "chosen.long.reads.sorted_by_name.sam" "sv.$CHROM.$SV_START.vcf"
 
 # Output: consensus.fa
 
@@ -154,7 +154,7 @@ echo -e "\n" >> "final.fa"
 # $OT/programs/minimap2-2.3_x64-linux/minimap2 -ax map-ont "$OT/hg38.mmi" "final.fa" > "final.sam"
 #
 # echo "## Evaluate Final Mapping"
-# $EXEC_DIR/evaluate_final_mapping "final.sam"
+# $EXEC_DIR/utilities/evaluate_final_mapping "final.sam"
 #
 #
 # cat "$BAMFILE_ONT_HEADER" > polished.hg38.sam

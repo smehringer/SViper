@@ -200,7 +200,7 @@ echo -e "\t\t\t\t\t\t\t[~ $(($SECONDS / 60))m $(($SECONDS % 60))s]"
 echo "### Evaluation of variants. " | tee -a $LOG
 # ------------------------------------------------------------------------------
 SECONDS=0
-$EXEC_DIR/evaluate_final_mapping "final-all.sortedByName.sam" "$VCF_FILE" > "$VCF_FILE.polished.vcf" 2>> $LOG
+$EXEC_DIR/utilities/evaluate_final_mapping "final-all.sortedByName.sam" "$VCF_FILE" > "$VCF_FILE.polished.vcf" 2>> $LOG
 echo -e "\t\t\t\t\t\t\t[~ $(($SECONDS / 60))m $(($SECONDS % 60))s]"
 
 echo "----------------------------------------------------------------------"
