@@ -119,10 +119,24 @@ if [ ! -f "$ONT_BAM_FILE" ]
     exit 1
 fi
 
+if [ ! -f "$ONT_BAM_FILE.bai" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find index file $ONT_BAM_FILE.bai."\
+         " Please provide a bam index file."
+    exit 1
+fi
+
 if [ ! -f "$BAMFILE_ILLUMINA" ]
     then
     echo "[ERROR - sweep_sample.sh] Could not find file $BAMFILE_ILLUMINA."\
     " Please correct filename in polishing.config."
+    exit 1
+fi
+
+if [ ! -f "$BAMFILE_ILLUMINA" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find index file $BAMFILE_ILLUMINA.bai"\
+    " Please provide a bam index file."
     exit 1
 fi
 
