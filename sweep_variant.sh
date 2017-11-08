@@ -30,6 +30,88 @@ fi
 
 source "$CONFIG"
 
+# ------------------------------------------------------------------------------
+#                            File existence checks
+# ------------------------------------------------------------------------------
+
+# Check executable files
+# -----------------------
+if [ ! -f "$EXEC_DIR/sweep_variant.sh" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find executable $EXEC_DIR/sweep_variant.sh."\
+         " Please ensure correct file structure of the polishing toolset."
+    exit 1
+fi
+
+if [ ! -f "$EXEC_DIR/utilities/compute_region_positions_from_cigar" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find executable $EXEC_DIR/compute_region_positions_from_cigar (CPP)."\
+         " Please ensure correct file structure of the polishing toolset."
+    exit 1
+fi
+
+if [ ! -f "$EXEC_DIR/utilities/numtMateHunt" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find executable $EXEC_DIR/numtMateHunt (CPP)."\
+         " Please ensure correct file structure of the polishing toolset."
+    exit 1
+fi
+
+if [ ! -f "$PILON_EXECUTABLE" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find pilon executable $PILON_EXECUTABLE (CPP)."\
+         " Please ensure correct executable path or change the config file."
+    exit 1
+fi
+
+# Check user provided variables in config file
+# --------------------------------------------
+if [ ! -f "$ONT_BAM_FILE" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find file $ONT_BAM_FILE."\
+         " Please correct filename in polishing.config."
+    exit 1
+fi
+
+if [ ! -f "$ONT_BAM_FILE.bai" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find index file $ONT_BAM_FILE.bai."\
+         " Please provide a bam index file."
+    exit 1
+fi
+
+if [ ! -f "$BAMFILE_ILLUMINA" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find file $BAMFILE_ILLUMINA."\
+    " Please correct filename in polishing.config."
+    exit 1
+fi
+
+if [ ! -f "$BAMFILE_ILLUMINA" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find index file $BAMFILE_ILLUMINA.bai"\
+    " Please provide a bam index file."
+    exit 1
+fi
+
+if [ ! -f "$VCF_FILE" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find file $VCF_FILE."\
+    " Please correct filename in polishing.config."
+    exit 1
+fi
+
+if [ -z "$REGION_AROUND_VARIANT" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Variable REGION_AROUND_VARIANT cannot be empty."\
+    " Please correct variable in polishing.config."
+    exit 1
+fi
+
+# ------------------------------------------------------------------------------
+#                            Start polishing variant
+# ------------------------------------------------------------------------------
+
 DATE=$(date +"%d-%B-%Y")
 LOG="$(pwd)/sv.$CHROM.$SV_START.log" # logs all the programm output
 echo $DATE > $LOG                    # initialize logfile
