@@ -650,7 +650,7 @@ double compute_identity_measure(BamAlignmentRecord const & record)
     if (id == -1)
         return -1;
 
-    double nm;
+    double nm{0};
     extractTagValue(nm, tagsDict, id);
 
     return (1 - (nm/(length(record.seq) - 10000))) * 100;

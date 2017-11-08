@@ -15,6 +15,7 @@ using namespace seqan;
 
 struct CmdOptions
 {
+    bool verbose{false};
     int flanking_region{400}; // size of flanking region for breakpoints
     string bam_name;
     string vcf_name;
@@ -42,8 +43,7 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 
     addOption(parser, seqan::ArgParseOption(
         "v", "verbose",
-        "Turn on detailed information about the process",
-        seqan::ArgParseArgument::BOLEAN));
+        "Turn on detailed information about the process"));
 
     setMinValue(parser, "l", "50");
     setMaxValue(parser, "l", "1000");
@@ -58,6 +58,7 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 
     // Extract option values.
     getOptionValue(options.flanking_region, parser, "flanking-region");
+    options.verbose = isSet(parser, "verbose");
 
     seqan::getArgumentValue(options.bam_name, parser, 0);
     seqan::getArgumentValue(options.vcf_name, parser, 1);
