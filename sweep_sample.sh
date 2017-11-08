@@ -154,13 +154,7 @@ echo "----------------------------------------------------------------------" | 
 echo "START polishing variants in $VCF_FILE" | tee -a $LOG
 echo "----------------------------------------------------------------------" | tee -a $LOG
 
-# The vcf file must be sorted by position in order to polish correctly
-# (-> no reads doubled in output)
-SECONDS=0
-echo "### Sort vcf file by position. " | tee -a $LOG
-vt sort "$VCF_FILE" | grep -v "^#" > variants.vcf 2>> $LOG # subtract header for line by line processing
-echo -e "[~ $(($SECONDS / 60))m $(($SECONDS % 60))s]" | tee -a $LOG
-echo "----------------------------------------------------------------------" | tee -a $LOG
+grep -v "^#" "$VCF_FILE" > variants.vcf 2>> $LOG # subtract header for line by line processing
 
 COUNT=0
 PREV_POS="-1"
@@ -209,13 +203,22 @@ while IFS= read -r line
 done < variants.vcf
 echo "----------------------------------------------------------------------"       | tee -a $LOG
 
+cat sv*/final.fa > "final-all.fa" 2>> $LOG
+
+if [ ! -f "final-all.fa" ] || [ -s "final-all.fa" ] # does not exists or is empty
+    then
+    echo "ATTENTION: No variants were polished."
+    echo "----------------------------------------------------------------------"       | tee -a $LOG
+    echo "                                 END"                                         | tee -a $LOG
+    echo "----------------------------------------------------------------------"       | tee -a $LOG
+fi
+
 # ------------------------------------------------------------------------------
 echo "### Remapping. "                                                              | tee -a $LOG
 # ------------------------------------------------------------------------------
 echo "## align polished sequence by calling the following command:"                 | tee -a $LOG
 echo "## $MAPPER_CALL"                                                              | tee -a $LOG
 SECONDS=0
-cat sv*/final.fa > "final-all.fa" 2>> $LOG
 eval "$MAPPER_CALL 2>> $LOG"
 samtools sort "final-all.sam" -o "final-all.bam" 2>> $LOG
 samtools index "final-all.bam" 2>> $LOG
