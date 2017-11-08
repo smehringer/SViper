@@ -1,3 +1,7 @@
+#!/bin/sh
+
+export EXEC_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 if [ "$#" -ne 4 ]; then
     echo "usage: CONFIG.config REF_SEQUENCE.fa SHORT_READS_1.fastq SHORT_READS_.fasq"
     exit 1

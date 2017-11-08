@@ -15,7 +15,6 @@ if [ "$#" -ne 1 ]; then
         echo 'export VCF_FILE="/path/to/variants/or/regions/you/want/to/have/polished/data.vcf"' >> polishing.config
         echo 'export REGION_AROUND_VARIANT=400 #default' >> polishing.config
         echo 'export LOG=polishing.log #default log file name' >> polishing.config
-        echo 'export EXEC_DIR='"$EXEC_DIR"' #default log file name' >> polishing.config
 
         echo "I just dropped a sample config file 'polishing.config' in the "\
              "current directory for you to alter."
