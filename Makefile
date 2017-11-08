@@ -39,7 +39,8 @@ $(TARGETDIR)/%: $(SRCDIR)/%.cpp
 	$(CXX) $(CXXFLAGS) $(LDLIBS) -o $@ $<
 
 clean:
-	rm -rf $(TARGETDIR)
+	@echo Cleaning executables in utilities
+	$(shell find utilities -type f -regex '^[^.]+' -delete)
 
 .PHONY: clean
 
