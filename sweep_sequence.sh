@@ -40,7 +40,7 @@ do
     samtools index mapped.illumina.reads.bam 2>> $LOG
 
     echo -e "ņ### Pilon Piloshing. " >> $LOG # output: pilon.fasta
-    java -jar $EXEC_DIR/pilon-1.22.jar --genome $REF --frags mapped.illumina.reads.bam > out.pilon
+    java -jar $PILON_EXECUTABLE --genome $REF --frags mapped.illumina.reads.bam > out.pilon
     cat out.pilon >> $LOG
 
     CORRECTIONS=$(cat out.pilon | grep "Corrected" | grep -E "[123456789]") || true # ignore grep error

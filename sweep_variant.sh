@@ -34,13 +34,6 @@ DATE=$(date +"%d-%B-%Y")
 LOG="$(pwd)/sv.$CHROM.$SV_START.log" # logs all the programm output
 echo $DATE > $LOG                    # initialize logfile
 
-BAMFILE_ILLUMINA_HEADER="$POLISHING_DIR/BAMFILE_ILLUMINA.header"
-samtools view -H "$BAMFILE_ILLUMINA" -o "$BAMFILE_ILLUMINA_HEADER"
-
-BAMFILE_ONT_HEADER="$POLISHING_DIR/BAMFILE_ONT.header"
-samtools view -H "$ONT_BAM_FILE" -o "$BAMFILE_ONT_HEADER"
-
-
 echo "" | tee -a $LOG
 echo -e "======================================================================" | tee -a $LOG
 echo -e "                       POLISHING VARIANT $CHROM:$SV_START" | tee -a $LOG
