@@ -66,6 +66,20 @@ fi
 
 # Check user provided variables in config file
 # --------------------------------------------
+if [ ! -f "$REFERENCE" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find file $REFERENCE."\
+         " Please correct filename in polishing.config."
+    exit 1
+fi
+
+if [ ! -f "$REFERENCE.fai" ]
+    then
+    echo "[ERROR - sweep_sample.sh] Could not find index file $ONT_BAM_FILE."\
+         " Please ensure that your reference file is indexed."
+    exit 1
+fi
+
 if [ ! -f "$ONT_BAM_FILE" ]
     then
     echo "[ERROR - sweep_sample.sh] Could not find file $ONT_BAM_FILE."\
