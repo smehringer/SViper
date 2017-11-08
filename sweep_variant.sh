@@ -39,7 +39,7 @@ echo -e "======================================================================"
 echo -e "                       POLISHING VARIANT $CHROM:$SV_START" | tee -a $LOG
 echo -e "======================================================================" | tee -a $LOG
 
-SV_END_CHROM=$(grep "^$CHROM\s$SV_START" $VCF_FILE | sed -e "s/.*CHR2=\([a-Z0-9]*\).*/\1/g")
+SV_END_CHROM=$(grep "^$CHROM\s$SV_START" $VCF_FILE | sed -e "s/.*CHR2=\([a-zA-Z0-9]*\).*/\1/g")
 if [ ! "$SV_END_CHROM" == "$CHROM" ]
     then
     echo "[ERROR sweep_variant.sh] polishing variants where CHR != CHR2 ($CHROM != $SV_END_CHROM) is currently not supprted."
