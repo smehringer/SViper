@@ -122,6 +122,7 @@ inline void paired_mapping(StringSet<Dna5String> const & reads,
     // BamFileOut bamFileOut(refer);
     ofstream pseudo_bamfile("pseudo.sam");
 
+    #pragma omp parallel for
     for (unsigned i = 0; i < length(reads); ++i)
     {
         if (ids[i] != ids2[i])
@@ -153,7 +154,9 @@ inline void paired_mapping(StringSet<Dna5String> const & reads,
             record2.flag |= 0x2;
         }
 
+        #pragma omp critical
         write(pseudo_bamfile, record1, bamIOContext, Sam());
+        #pragma omp critical
         write(pseudo_bamfile, record2, bamIOContext, Sam());
         //writeRecord(bamFileOut, record);
     }

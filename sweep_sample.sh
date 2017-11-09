@@ -103,13 +103,6 @@ if [ ! -f "$EXEC_DIR/utilities/numtMateHunt" ]
     exit 1
 fi
 
-if [ ! -f "$PILON_EXECUTABLE" ]
-    then
-    echo "[ERROR - sweep_sample.sh] Could not find pilon executable $PILON_EXECUTABLE (CPP)."\
-         " Please ensure correct executable path or change the config file."
-    exit 1
-fi
-
 # Check user provided variables in config file
 # --------------------------------------------
 if [ ! -f "$REFERENCE" ]

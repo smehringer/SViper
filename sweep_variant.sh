@@ -57,13 +57,6 @@ if [ ! -f "$EXEC_DIR/utilities/numtMateHunt" ]
     exit 1
 fi
 
-if [ ! -f "$PILON_EXECUTABLE" ]
-    then
-    echo "[ERROR - sweep_sample.sh] Could not find pilon executable $PILON_EXECUTABLE (CPP)."\
-         " Please ensure correct executable path or change the config file."
-    exit 1
-fi
-
 # Check user provided variables in config file
 # --------------------------------------------
 if [ ! -f "$REFERENCE" ]
@@ -205,57 +198,12 @@ cat "$BAMFILE_ILLUMINA_HEADER" "chosen.short.reads.sorted_by_name.sam" | \
     samtools fastq -n -1 "illumina.paired1.fastq" -2 "illumina.paired2.fastq" -  2>> $LOG
 
 # -----------------------------------------------------------------------------
-#                             Compute conensus
+#                 Compute and polish conensus with cpp programm
 # -----------------------------------------------------------------------------
 grep "^$CHROM\s$SV_START" $VCF_FILE > "sv.$CHROM.$SV_START.vcf"
-$EXEC_DIR/utilities/build_consensus_from_all_reads "chosen.long.reads.sorted_by_name.sam" "sv.$CHROM.$SV_START.vcf"
+$EXEC_DIR/utilities/polishing2 -v "$REFERENCE" "chosen.long.reads.sorted_by_name.sam" "sv.$CHROM.$SV_START.vcf"
 
-# Output: consensus.fa
-
-# -----------------------------------------------------------------------------
-#                              Polish conensus
-# -----------------------------------------------------------------------------
-echo "### Perform Pilon polishing rounds until there is no change anymore" >> $LOG
-echo "Note: change means that the pilon output contains no 'Corrected X snps/indels/..'" >> $LOG
-echo "      with X > 0. And no 'BreakFix' in the output." >> $LOG
-
-REF="consensus.fa" # The current "genome" reference (read to polish)
-ILLUMINA1="illumina.paired1.fastq"
-ILLUMINA2="illumina.paired2.fastq"
-
-$EXEC_DIR/sweep_sequence.sh $CONFIG $REF $ILLUMINA1 $ILLUMINA2
-
-# Output: polished.fasta
-
-# -----------------------------------------------------------------------------
-#                       Align polished read to reference
-# -----------------------------------------------------------------------------
-
-# cat variant information into id for easier match up
-echo -e ">final_""$CHROM""_""$SV_START""_""$(cut -f 3 sv.$CHROM.$SV_START.vcf)" > "final.fa"
-grep -v "^>" "polished.fasta" | tr -d '\n' > "middle.txt"
-samtools faidx "$REFERENCE" "$CHROM:$(($START-5000))-$(($START))" | grep -v "^>" | tr -d '\n' > "left-flank.txt"
-samtools faidx "$REFERENCE" "$CHROM:$(($END))-$(($END+5000))"     | grep -v "^>" | tr -d '\n' > "right-flank.txt"
-cat "left-flank.txt" "middle.txt" "right-flank.txt" | fold -w 70 >> "final.fa"
-echo -e "\n" >> "final.fa"
-
-# echo "## align polished sequence with minimap"
-# $OT/programs/minimap2-2.3_x64-linux/minimap2 -ax map-ont "$OT/hg38.mmi" "final.fa" > "final.sam"
-#
-# echo "## Evaluate Final Mapping"
-# $EXEC_DIR/utilities/evaluate_final_mapping "final.sam"
-#
-#
-# cat "$BAMFILE_ONT_HEADER" > polished.hg38.sam
-#
-# grep -v "^@" "polished.sam"                 | awk "BEGIN{OFS=\"\t\";} {\$1=\"polished.ngmlr\"; print \$0;}" >> polished.hg38.sam
-# grep -v "^@" "polished.minimap.asm.sam"     | awk "BEGIN{OFS=\"\t\";} {\$1=\"polished.minimap.asm\"; print \$0;}" >> polished.hg38.sam
-# grep -v "^@" "polished.minimap.default.sam" | awk "BEGIN{OFS=\"\t\";} {\$1=\"polished.minimap.default\"; print \$0;}" >> polished.hg38.sam
-# grep -v "^@" "polished.minimap.ont.sam"     | awk "BEGIN{OFS=\"\t\";} {\$1=\"polished.minimap.ont\"; print \$0;}" >> polished.hg38.sam
-#
-# samtools sort polished.hg38.sam > polished.hg38.bam
-# samtools index polished.hg38.bam
-
+# output: final.fa (which is the consensus flanked by +-5000 bo reference)
 
 echo "--------------------------------------------------------------------------------" >> $LOG
 echo "                                     DONE" | tee -a $LOG

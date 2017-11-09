@@ -337,8 +337,8 @@ int main(int argc, char const ** argv)
     append(final_sequence, ref);
     append(final_sequence, rightLargeFlank);
 
-    SeqFileOut final("consensus-polished.fa");
-    writeRecord(final, "polished_consensus", final_sequence);
+    SeqFileOut final(("final.fa"));
+    writeRecord(final, (string("final") + "_" + var.ref_chrom + "_" + to_string(var.ref_pos) + "_" + var.id), final_sequence);
 
     return 0;
 }
