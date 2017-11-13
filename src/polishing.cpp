@@ -210,7 +210,8 @@ int main(int argc, char const ** argv)
     if (options.verbose)
     {
         cout << "--- Cropping read regions +-" << options.flanking_region << " around variants." << endl;
-        cout << "--- Regions & Lengths:" << endl;
+        cout << "--- Referene Region: [" << ref_region_start << "-" << ref_region_end << "]" << endl;
+        cout << "--- Corresponding Regions & Lengths in long reads:" << endl;
     }
 
     StringSet<DnaString> supporting_sequences;
@@ -295,13 +296,12 @@ int main(int argc, char const ** argv)
 
     while (ref != old_ref && round < 20)
     {
-        cout << "-------------------------------- SNV ROUND " << round
-             << "--------------------------------" << endl;
+        if (options.verbose)
+            cout << "-------------------------------- SNV ROUND " << round
+                 << "--------------------------------" << endl;
 
         old_ref = ref; // store prior result
-
         ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-
         ++round;
         // break;
     }
@@ -310,11 +310,11 @@ int main(int argc, char const ** argv)
     config.fix_indels = true;
     for (unsigned i= 0; i < 10; ++i)
     {
-        cout << "-------------------------------- INDEL ROUND " << i
-             << "--------------------------------" << endl;
+        if (options.verbose)
+            cout << "-------------------------------- INDEL ROUND " << i
+                 << "--------------------------------" << endl;
 
         ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-
         ++round;
         // break;
     }
@@ -323,13 +323,12 @@ int main(int argc, char const ** argv)
     old_ref = ""; // reset
     while (ref != old_ref && round < 50)
     {
-        cout << "-------------------------------- INDEL NO PAIRS ROUND " << round
-             << "--------------------------------" << endl;
+        if (options.verbose)
+            cout << "-------------------------------- INDEL NO PAIRS ROUND " << round
+                 << "--------------------------------" << endl;
 
         old_ref = ref; // store prior result
-
         ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-
         ++round;
         // break;
     }

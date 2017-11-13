@@ -180,11 +180,38 @@ struct ConsensusConfig
     bool fix_indels{false};
     bool only_proper_pairs{true};
     unsigned buffer{150};
-    double mappQ_mean{0};
-    double baseQ_mean{0};
-    double mappQ_std{1};
-    double baseQ_std{1};
+
+    // qualitiy statistics
+    double baseQ_mean{0}; // will be overriden once when reading in reads
+    double baseQ_std{1};  // will be overriden once when reading in reads
+    double mappQ_mean{0}; // will be overriden every round after mapping
+    double mappQ_std{1};  // will be overriden every round after mapping
     double alpha{1}; // scaling factor such that mapping and base quality are comparable
+    double mean_coverage{0};
+
+    /* [used in fill_profiles
+     * Returns the value to be added to the profile. A profile consists of counts
+     * for the letters A,C,T,G,- weighted by their quality. The profile is later
+     * on used to determine the new reference sequence.*/
+    double add_to_profile(double const & baseQ,
+                        double const & mappQ,
+                        bool is_in_propair_pair) const
+    {
+        if (is_in_propair_pair)
+            return (baseQ + (mappQ / alpha)); // return double the score
+        return ((baseQ + (mappQ / alpha)) / 2);
+    }
+
+    /* [used in build_consensus_from_profile]
+     * Determines whether short read information is to be trusted
+     * TRUE: if base with given score will be substituted in consensus sequence
+     * FALSE: else*/
+    bool score_passes_threshold(double const & score) const
+    {
+        /* return true if score is at least as good as half the mean coverage
+         * of bases with half as good quality as the mean quality*/
+        return score >= (mean_coverage/2 * (baseQ_mean + mappQ_mean/alpha) / 4);
+    }
 };
 
 template <typename TStore>
@@ -289,13 +316,17 @@ inline void fill_profiles(String<ProfileChar<Dna5, double> > & quali_profile,
 
         // If read is in proper pair, the quality counts twice for the profile
         // since this read can be trusted
-        double pair_bonus{1.0};
+        bool is_proper_pair{false};
         if (!(ar.endPos < ar.beginPos /* ar (-)*/ && am.endPos > am.beginPos /*am (+)*/ && am.endPos < ar.beginPos /*am maps before ar*/) &&
             !(ar.endPos > ar.beginPos /* ar (+)*/ && am.endPos < am.beginPos /*am (-)*/ && ar.endPos < am.beginPos /*ar maps before am*/)) // TODO incoorparate correct insert size
+        {
             if (config.only_proper_pairs)
                 continue;
+        }
         else
-            pair_bonus = 2.0;
+        {
+            is_proper_pair = true;
+        }
 
         readSeq = store.readSeqStore[ar.readId];
         if (ar.endPos < ar.beginPos)
@@ -324,8 +355,7 @@ inline void fill_profiles(String<ProfileChar<Dna5, double> > & quali_profile,
                 baseQ = getQualityValue(readSeq[sourcePos]);
             }
 
-            quali_profile[begin + row].count[ord_idx] += ((baseQ + ((double)aq.score / config.alpha)) *
-                                                          pair_bonus / 2);
+            quali_profile[begin + row].count[ord_idx] += config.add_to_profile(baseQ, aq.score, is_proper_pair);
             cover_profile[begin + row].count[ord_idx] += 1;
         }
     }
@@ -353,15 +383,23 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
     // now fix conesnsus
     for (unsigned i = begin; i < end; ++i)
     {
-        if (!config.fix_indels) // if only substitutions are allowed
+        if (!config.fix_indels)       // if only substitutions are allowed
             if (isGap(contigGaps, i)) // do not insert bases
                 continue;
 
         int idx = getMaxIndex(profile[i]);
 
+        if (!config.score_passes_threshold(profile[i].count[idx]))
+        {
+            if (!isGap(contigGaps, i))
+                appendValue(cns, source(contigGaps)[toSourcePosition(contigGaps, i)]);
+            continue;
+        }
+
         if (idx < 5)  // is not gap TODO replace by seqan alphabet size or something like that
         {
-            appendValue(cns, Dna5(getMaxIndex(profile[i])));
+            appendValue(cns, Dna5(idx));
+
             if (isGap(contigGaps, i))
                 ++insertions;
             else if (source(contigGaps)[toSourcePosition(contigGaps, i)] == Dna5(getMaxIndex(profile[i])))
@@ -529,10 +567,11 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
     {
         mean_coverage += totalCount(p);
     }
-    mean_coverage = mean_coverage/length(cover_profile);
+    config.mean_coverage = mean_coverage/length(cover_profile);
+
 
     if (config.verbose)
-        std::cout << mean_coverage << endl;
+        std::cout << config.mean_coverage << endl;
 
     if (config.verbose)
         cout << "### Build new consensus... length before: " << length(ref) << endl;
