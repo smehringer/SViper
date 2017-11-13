@@ -629,7 +629,8 @@ inline DnaString build_consensus(StringSet<DnaString> const & seqs,
     for (unsigned i = 0; i < length(row(align, 0)); ++i)
     {
         for (unsigned rowNo = 0; rowNo < length(seqs); ++rowNo)
-            if (i > countLeadingGaps(row(align, rowNo)) && i < countTrailingGaps(row(align, rowNo))) // do not count leading and trailing gaps
+            if (i > countLeadingGaps(row(align, rowNo)) && // do not count leading and trailing gaps
+                i < (length(row(align, rowNo)) - countTrailingGaps(row(align, rowNo))))
                 profile[0].count[ordValue(getValue(row(align, rowNo), i))] += (1.0 * mapQ[rowNo] / 100);
 
         int idx = getMaxIndex(profile[0]);
