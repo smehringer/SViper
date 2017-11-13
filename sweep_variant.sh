@@ -201,7 +201,7 @@ cat "$BAMFILE_ILLUMINA_HEADER" "chosen.short.reads.sorted_by_name.sam" | \
 #                 Compute and polish conensus with cpp programm
 # -----------------------------------------------------------------------------
 grep "^$CHROM\s$SV_START" $VCF_FILE > "sv.$CHROM.$SV_START.vcf"
-$EXEC_DIR/utilities/polishing2 -v "$REFERENCE" "chosen.long.reads.sorted_by_name.sam" "sv.$CHROM.$SV_START.vcf"
+$EXEC_DIR/utilities/polishing -v "$REFERENCE" "chosen.long.reads.sorted_by_name.sam" "sv.$CHROM.$SV_START.vcf"
 
 # output: final.fa (which is the consensus flanked by +-5000 bo reference)
 
