@@ -18,6 +18,7 @@ using namespace seqan;
 struct CmdOptions
 {
     bool verbose{false};
+    bool veryVerbose{false};
     int flanking_region{400}; // size of flanking region for breakpoints
     string bam_name;
     string vcf_name;
@@ -48,7 +49,11 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 
     addOption(parser, seqan::ArgParseOption(
         "v", "verbose",
-        "Turn on detailed information about the process"));
+        "Turn on detailed information about the process."));
+
+    // addOption(parser, seqan::ArgParseOption(
+    //     "vv", "very-verbose",
+    //     "Turn on detailed information about the process and write out intermediate results."));
 
     setMinValue(parser, "l", "50");
     setMaxValue(parser, "l", "1000");
@@ -64,6 +69,10 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     // Extract option values.
     getOptionValue(options.flanking_region, parser, "flanking-region");
     options.verbose = isSet(parser, "verbose");
+    // options.veryVerbose = isSet(parser, "very-verbose");
+
+    if (options.veryVerbose)
+        options.verbose = true;
 
     seqan::getArgumentValue(options.reference_name, parser, 0);
     seqan::getArgumentValue(options.bam_name, parser, 1);
@@ -168,6 +177,7 @@ int main(int argc, char const ** argv)
     //process last group
     BamAlignmentRecord merged_record = process_record_group(record_group);
     merged_records.push_back(merged_record);
+
     if (options.verbose)
         cout << "--- After merging, " << merged_records.size() << " record(s) remain(s)." << endl;
 
@@ -210,6 +220,7 @@ int main(int argc, char const ** argv)
         auto region = get_read_region_boundaries(rec, ref_region_start, ref_region_end);
         DnaString reg = infix(rec.seq, get<0>(region), get<1>(region));
         appendValue(supporting_sequences, reg);
+
         if (options.verbose)
         {
             cout << "------ [" << get<0>(region) << "-" << get<1>(region) << "] L:" << length(reg) << endl;
@@ -245,7 +256,6 @@ int main(int argc, char const ** argv)
         cout << "--- Writing consensus sequence to file consensus.fa ." << endl;
         SeqFileOut seqFileOut("consensus.fa");
         writeRecord(seqFileOut, "consensus", consensus_sequence);
-
     }
 
     // -------------------------------------------------------------------------
@@ -269,29 +279,28 @@ int main(int argc, char const ** argv)
     SeqFileIn illumina_file_pair2("illumina.paired2.fastq");
 
     StringSet<String<char>> ids1;
-    StringSet<Dna5String> reads1;
-    StringSet<String<char>> quals1;
-
     StringSet<String<char>> ids2;
-    StringSet<Dna5String> reads2;
-    StringSet<String<char>> quals2;
+    StringSet<Dna5QString> reads1; // read qualitites into sequence
+    StringSet<Dna5QString> reads2; // read qualitites into sequence
 
-    readRecords(ids1, reads1, quals1, illumina_file_pair1);
-    readRecords(ids2, reads2, quals2, illumina_file_pair2);
+    readRecords(ids1, reads1, illumina_file_pair1);
+    readRecords(ids2, reads2, illumina_file_pair2);
 
     Dna5String old_ref;
     ConsensusConfig config{}; // default
+    config.verbose = options.verbose;
+    compute_baseQ_stats(config, reads1, reads2);
 
     unsigned round{1};
 
-    while (ref != old_ref)
+    while (ref != old_ref && round < 20)
     {
         cout << "-------------------------------- SNV ROUND " << round
              << "--------------------------------" << endl;
 
         old_ref = ref; // store prior result
 
-        ref = polish(reads1, ids1, quals1, reads2, ids2, quals2, ref, id, config);
+        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
 
         ++round;
         // break;
@@ -299,12 +308,12 @@ int main(int argc, char const ** argv)
 
     // after all substitutions has been corrected, correct insertions/deletions a few times with only proper pairs
     config.fix_indels = true;
-    for (unsigned i= 0; i < 3; ++i)
+    for (unsigned i= 0; i < 10; ++i)
     {
         cout << "-------------------------------- INDEL ROUND " << i
              << "--------------------------------" << endl;
 
-        ref = polish(reads1, ids1, quals1, reads2, ids2, quals2, ref, id, config);
+        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
 
         ++round;
         // break;
@@ -312,14 +321,14 @@ int main(int argc, char const ** argv)
 
     config.only_proper_pairs = false;
     old_ref = ""; // reset
-    while (ref != old_ref)
+    while (ref != old_ref && round < 50)
     {
         cout << "-------------------------------- INDEL NO PAIRS ROUND " << round
              << "--------------------------------" << endl;
 
         old_ref = ref; // store prior result
 
-        ref = polish(reads1, ids1, quals1, reads2, ids2, quals2, ref, id, config);
+        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
 
         ++round;
         // break;
