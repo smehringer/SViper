@@ -169,7 +169,7 @@ int main(int argc, char const ** argv)
 
     for (auto rec : supporting_records)
     {
-        auto region = get_read_region_boundaries(rec, var.ref_pos - options.flanking_region, var.ref_pos + var.sv_length + options.flanking_region);
+        auto region = get_read_region_boundaries(rec, var.ref_pos - options.flanking_region, var.ref_pos_end + options.flanking_region);
         DnaString reg = infix(rec.seq, get<0>(region), get<1>(region));
         appendValue(supporting_sequences, reg);
         if (verbose)
