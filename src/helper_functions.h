@@ -88,8 +88,34 @@ struct Variant
         else
             sv_type = SV_TYPE::UNKOWN;
 
-        // determine LENGTH from SVLEN/END info tag
-        auto n = info.find("SVLEN=");
+        // determine END position from END info tag
+        auto n = info.find("END=");
+        if (n !=  std::string::npos)
+        {
+            stringstream ss(info.substr(n+4, info.find(';', n) - n - 4));
+            ss >> ref_pos_end;                 // store end temporarily
+            if (ss.fail())
+                throw std::iostream::failure("ERROR when reading vcf file. END value "+
+                                             info.substr(n+4, info.find(';', n) - n - 4)+
+                                             " of variant " + ref_chrom + ":" + to_string(ref_pos) +
+                                             " could not be read.");
+            if (ref_pos_end < ref_pos)
+                throw std::iostream::failure("ERROR when reading vcf file. END value "+
+                                             info.substr(n+4, info.find(';', n) - n - 4)+
+                                             " of variant " + ref_chrom + ":" + to_string(ref_pos) +
+                                             " is larger than start pos " + to_string(ref_pos));
+
+        }
+        else
+        {
+            throw std::iostream::failure(string("ERROR when reading vcf file.") +
+                                         " END tag not found in info field of variant "+
+                                         ref_chrom + ":" + to_string(ref_pos) + "." +
+                                         " INFO: " + info + "."
+                                         );
+        }
+
+        n = info.find("SVLEN=");
         if (n != std::string::npos &&
             info.substr(n+6, info.find(';', n) - n - 6) != "NA" &&
             info.substr(n+6, info.find(';', n) - n - 6) != ".")
@@ -102,34 +128,9 @@ struct Variant
                                              " of variant " + ref_chrom + ":" + to_string(ref_pos) +
                                              " could not be read.");
         }
-        else // if SVLEN is not in the info, use END
+        else // if SVLEN is not in the info, use END (will not work for insertions...)
         {
-            n = info.find("END=");
-            if (n !=  std::string::npos)
-            {
-                stringstream ss(info.substr(n+4, info.find(';', n) - n - 4));
-                ss >> sv_length;                 // store end temporarily
-                if (ss.fail())
-                    throw std::iostream::failure("ERROR when reading vcf file. END value "+
-                                                 info.substr(n+4, info.find(';', n) - n - 4)+
-                                                 " of variant " + ref_chrom + ":" + to_string(ref_pos) +
-                                                 " could not be read.");
-                if (sv_length < ref_pos)
-                    throw std::iostream::failure("ERROR when reading vcf file. END value "+
-                                                 info.substr(n+4, info.find(';', n) - n - 4)+
-                                                 " of variant " + ref_chrom + ":" + to_string(ref_pos) +
-                                                 " is larger than start pos " + to_string(ref_pos));
-
-                sv_length = sv_length - ref_pos; // calculate actual length
-            }
-            else
-            {
-                throw std::iostream::failure(string("ERROR when reading vcf file.") +
-                                             " END tag not found in info field of variant "+
-                                             ref_chrom + ":" + to_string(ref_pos) + "." +
-                                             " INFO: " + info + "."
-                                             );
-            }
+            sv_length = ref_pos_end - ref_pos; // calculate actual length
         }
 
     }
@@ -144,6 +145,7 @@ struct Variant
     int     sv_length{-1};
     string  ref_chrom;
     int     ref_pos{-1};
+    int     ref_pos_end{-1};
     string  id;
     string  ref_seq;
     string  alt_seq;
