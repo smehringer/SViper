@@ -19,7 +19,7 @@ SEQAN_LIB=/nfs/prog/bioinfo/apps-x86_64/seqan-library/2.2.0/include
 
 CXXFLAGS+=-I$(SEQAN_LIB) -DSEQAN_HAS_ZLIB=1
 CXXFLAGS+=-I./src/
-LDLIBS=-lz -lpthread
+LDLIBS=-lz -lpthread -fopenmp
 CXXFLAGS+=-DDATE=\""$(DATE)"\"
 
 # Enable warnings
