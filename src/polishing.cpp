@@ -144,7 +144,7 @@ int main(int argc, char const ** argv)
     }
     int ref_length = sequenceLength(faiIndex, ref_fai_idx);
     int ref_region_start = max(0, var.ref_pos - options.flanking_region);
-    int ref_region_end   = min(ref_length, var.ref_pos + var.sv_length + options.flanking_region); // TODO remove dirty cast
+    int ref_region_end   = min(ref_length, var.ref_pos_end + options.flanking_region); // TODO remove dirty cast
 
     // -------------------------------------------------------------------------
     // Merge supplementary alignments to primary
