@@ -293,19 +293,14 @@ int main(int argc, char const ** argv)
                                                           ref_region_end,
                                                           false);
 
-        BamFileOut tmp(context(short_read_bam), "tmp.sam");
-        for (auto const & rec : short_reads)
-            writeRecord(tmp, rec);
-
-        log_file << "--- Extracted " << short_reads.size() << " short reads."
-                 << " in region "<< ref_region_start << "-"
-                 << ref_region_end << "]" << std::endl;
-
         records_to_read_pairs(short_reads_1, short_ids_1,
                               short_reads_2, short_ids_2,
                               short_reads, short_read_bam, short_read_bai);
 
-        log_file << "--- Those lead to " << length(short_reads_1) << " pairs." << std::endl;
+        log_file << "--- Extracted " << short_reads.size() << " short reads in"
+                 << length(short_reads_1) << " pairs (proper or dummy pairs)."
+                 << std::endl;
+
         // Flank consensus sequence
         // ---------------------------------------------------------------------
         // Before polishing, append a reference flank of length 150 (illumina
@@ -325,6 +320,12 @@ int main(int argc, char const ** argv)
         Dna5String polished_ref = polish_to_perfection(short_reads_1, short_ids_1,
                                                        short_reads_2, short_ids_2,
                                                        ref, id, config);
+
+        log_file << "DONE POLISHING: Total of "
+                 << config.substituted_bases << " substituted, "
+                 << config.deleted_bases     << " deleted and "
+                 << config.inserted_bases    << " inserted bases."
+                 << std::endl;
 
         // Flank polished sequence
         // ---------------------------------------------------------------------

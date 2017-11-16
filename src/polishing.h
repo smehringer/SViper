@@ -209,6 +209,13 @@ struct ConsensusConfig
     double mean_coverage{0};
     double min_coverage{4};
 
+    /* Polishing statistics (total base count).
+     * Note: The total number can exceed the length easily since bases can be
+     * changed multiple times during different rounds. */
+    unsigned substituted_bases{0};
+    unsigned inserted_bases{0};
+    unsigned deleted_bases{0};
+
     /* [used in fill_profiles
      * Returns the value to be added to the profile. A profile consists of counts
      * for the letters A,C,T,G,- weighted by their quality. The profile is later
@@ -383,18 +390,13 @@ inline void fill_profiles(String<ProfileChar<Dna5, double> > & quali_profile,
 template <typename TContigGaps>
 inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > const & profile,
                                          TContigGaps const & contigGaps,
-                                         ConsensusConfig const & config) // ebuffer at beginning and end
+                                         ConsensusConfig & config) // ebuffer at beginning and end
 {
     SEQAN_ASSERT(length(profile) == length(contigGaps));
 
     Dna5String cns;
     unsigned begin = toViewPosition(contigGaps, config.buffer);
     unsigned end   = toViewPosition(contigGaps, length(source(contigGaps)) - config.buffer);
-
-    unsigned confirmed{0};
-    unsigned substitutions{0};
-    unsigned insertions{0};
-    unsigned deletions{0};
 
     // first append unpolished bases in the beginning (before begin)
     append(cns, prefix(source(contigGaps), config.buffer));
@@ -420,11 +422,9 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
             appendValue(cns, Dna5(idx));
 
             if (isGap(contigGaps, i))
-                ++insertions;
-            else if (source(contigGaps)[toSourcePosition(contigGaps, i)] == Dna5(getMaxIndex(profile[i])))
-                ++confirmed;
-            else
-                ++substitutions;
+                ++config.inserted_bases;
+            else if (source(contigGaps)[toSourcePosition(contigGaps, i)] != Dna5(getMaxIndex(profile[i])))
+                ++config.substituted_bases;
         }
         else if (!config.fix_indels) // if idx < 5 but indels should not be fixed
         {
@@ -433,7 +433,7 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
         else // idx < 5 and fix_indels is true
         {
             if (!isGap(contigGaps, i))
-                ++deletions;
+                ++config.deleted_bases;
         }
     }
 
@@ -442,13 +442,6 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
 
     if (!config.fix_indels)
         SEQAN_ASSERT_EQ(length(source(contigGaps)), length(cns));
-
-    if (config.verbose)
-        cout << "CHANGES ARE (one base): "
-             << confirmed << " confirmed, "
-             << substitutions << " substitutions, "
-             << insertions << " insertions and "
-             << deletions << " deletions." << endl;
 
     return cns;
 }
@@ -544,8 +537,6 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
     typedef typename Value<TContigStore>::Type    TContig;
     typedef Gaps<typename TContig::TContigSeq, AnchorGaps<typename TContig::TGapAnchors>> TContigGaps;
 
-    if (config.verbose)
-        cout << "### Mapping..." << endl;
     paired_mapping(reads1, ids1, reads2, ids2, ref, id); // creates pseudo.sam for FragmentStore
 
     TFragmentStore store;
@@ -561,8 +552,6 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
     BamFileIn bamfile("pseudo.sam");
     readRecords(store, bamfile);
 
-    if (config.verbose)
-        cout << "### Fill profiles..." << endl;
     TContigGaps contigGaps(store.contigStore[0].seq, store.contigStore[0].gaps);
     String<ProfileChar<Dna5, double> > quali_profile;
     String<ProfileChar<Dna5, double> > cover_profile;
@@ -579,12 +568,10 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
     }
     config.mean_coverage = mean_coverage/length(cover_profile);
 
-    if (config.verbose)
-        cout << "### MappQ avg: " << config.mappQ_mean << " and std: " << config.mappQ_std
-             << ". Cov: " << config.mean_coverage << endl;
+    // if (config.verbose)
+    //     cout << "### MappQ avg: " << config.mappQ_mean << " and std: " << config.mappQ_std
+    //          << ". Cov: " << config.mean_coverage << endl;
 
-    if (config.verbose)
-        cout << "### Build new consensus... length before: " << length(ref) << endl;
     // Do not correct bases to the left and right of the consensus sequences otherwise
     // we extend the alignment with low coverage.
     // Also skip 50 bp of the beginning because reads will map poorly there
@@ -613,11 +600,6 @@ Dna5String polish_to_perfection(StringSet<Dna5QString> const & reads1,
     Dna5String old_ref;
 
     unsigned round{1};
-
-    if (config.verbose)
-        std::cout << "Number of short reads: " << (length(reads1) * 2)
-                  << ". Base Quality mean: " << config.baseQ_mean
-                  << " and std: " << config.baseQ_std << std::endl;
 
     while (ref != old_ref && round < 20)
     {
