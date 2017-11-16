@@ -9,6 +9,8 @@
 #include <seqan/align.h>
 #include <seqan/graph_msa.h>
 
+#include <basics.h>
+#include <merge_split_alignments.h>
 #include <helper_functions.h>
 #include <polishing.h>
 
@@ -20,9 +22,12 @@ struct CmdOptions
     bool verbose{false};
     bool veryVerbose{false};
     int flanking_region{400}; // size of flanking region for breakpoints
-    string bam_name;
-    string vcf_name;
-    string reference_name;
+    string long_read_file_name;
+    string short_read_file_name;
+    string candidate_file_name;
+    string out_vcf_file_name;
+    string reference_file_name;
+    string log_file_name;
 };
 
 ArgumentParser::ParseResult
@@ -30,22 +35,42 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 {
     // Setup ArgumentParser.
     seqan::ArgumentParser parser("Build Consensus");
-    setVersion(parser, "1.0.0");
+    setVersion(parser, "2.0.0");
 
-    addArgument(parser, seqan::ArgParseArgument(
-        seqan::ArgParseArgument::INPUT_FILE, "REFERENCE"));
-
-    addArgument(parser, seqan::ArgParseArgument(
-        seqan::ArgParseArgument::INPUT_FILE, "BAMFILE"));
-
-    addArgument(parser, seqan::ArgParseArgument(
-        seqan::ArgParseArgument::INPUT_FILE, "VCFFILE"));
-
-    // Define Options
     addOption(parser, seqan::ArgParseOption(
-        "l", "flanking-region",
+        "c", "candidate-vcf",
+        "A structural variant vcf file (with e.g. <DEL> tags), containing the potential variant sites to be looked at.",
+        seqan::ArgParseArgument::INPUT_FILE, "VCF_FILE"));
+
+    addOption(parser, seqan::ArgParseOption(
+        "s", "short-read-bam",
+        "The indexed bam file containing short used for polishing at variant sites.",
+        seqan::ArgParseArgument::INPUT_FILE, "BAM_FILE"));
+
+    addOption(parser, seqan::ArgParseOption(
+        "l", "long-read-bam",
+        "The indexed bam file containing long reads to be polished at variant sites.",
+        seqan::ArgParseArgument::INPUT_FILE, "BAM_FILE"));
+
+    addOption(parser, seqan::ArgParseOption(
+        "r", "reference",
+        "The indexed (fai) reference file.",
+        seqan::ArgParseArgument::INPUT_FILE, "FA_FILE"));
+
+    addOption(parser, seqan::ArgParseOption(
+        "k", "flanking-region",
         "The flanking region in bp's around a breakpoint to be considered for polishing",
         seqan::ArgParseArgument::INTEGER, "INT"));
+
+    addOption(parser, seqan::ArgParseOption(
+        "o", "output-vcf",
+        "A filename for the polished vcf file.",
+        seqan::ArgParseArgument::INPUT_FILE, "VCF_FILE"));
+
+    addOption(parser, seqan::ArgParseOption(
+        "g", "log-file",
+        "A filename for the log file.",
+        seqan::ArgParseArgument::INPUT_FILE, "TXT_FILE"));
 
     addOption(parser, seqan::ArgParseOption(
         "v", "verbose",
@@ -55,9 +80,16 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     //     "vv", "very-verbose",
     //     "Turn on detailed information about the process and write out intermediate results."));
 
-    setMinValue(parser, "l", "50");
-    setMaxValue(parser, "l", "1000");
-    setDefaultValue(parser, "l", "400");
+    setRequired(parser, "c");
+    setRequired(parser, "l");
+    setRequired(parser, "s");
+    setRequired(parser, "r");
+
+    setMinValue(parser, "k", "50");
+    setMaxValue(parser, "k", "1000");
+    setDefaultValue(parser, "k", "400");
+
+    setDefaultValue(parser, "g", "polishing.log");
 
     // Parse command line.
     seqan::ArgumentParser::ParseResult res = seqan::parse(parser, argc, argv);
@@ -67,23 +99,27 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
         return res;
 
     // Extract option values.
+    getOptionValue(options.candidate_file_name, parser, "candidate-vcf");
+    getOptionValue(options.long_read_file_name, parser, "long-read-bam");
+    getOptionValue(options.short_read_file_name, parser, "short-read-bam");
+    getOptionValue(options.reference_file_name, parser, "reference");
+    getOptionValue(options.out_vcf_file_name, parser, "output-vcf");
+    getOptionValue(options.log_file_name, parser, "log-file");
     getOptionValue(options.flanking_region, parser, "flanking-region");
     options.verbose = isSet(parser, "verbose");
     // options.veryVerbose = isSet(parser, "very-verbose");
 
-    if (options.veryVerbose)
-        options.verbose = true;
+    //if (options.veryVerbose)
+    //    options.verbose = true;
 
-    seqan::getArgumentValue(options.reference_name, parser, 0);
-    seqan::getArgumentValue(options.bam_name, parser, 1);
-    seqan::getArgumentValue(options.vcf_name, parser, 2);
+    if (options.out_vcf_file_name.empty())
+        options.out_vcf_file_name = options.candidate_file_name + "polished.vcf";
 
     return seqan::ArgumentParser::PARSE_OK;
 }
 
 int main(int argc, char const ** argv)
 {
-    // -------------------------------------------------------------------------
     // Parse Command Line Arguments
     // -------------------------------------------------------------------------
     CmdOptions options;
@@ -92,261 +128,226 @@ int main(int argc, char const ** argv)
     if (res != seqan::ArgumentParser::PARSE_OK)
         return res == seqan::ArgumentParser::PARSE_ERROR;
 
-    // -------------------------------------------------------------------------
-    // Set up
-    // -------------------------------------------------------------------------
-
-
     // Check files
     // -------------------------------------------------------------------------
-    ifstream vcf_file(options.vcf_name.c_str());
-    BamFileIn bamfileIn;
-    FaiIndex faiIndex;
+    ifstream input_vcf;              // The candidate variants to polish
+    ofstream output_vcf;             // The polished variant as output
+    FaiIndex faiIndex;               // The reference sequence fasta index
+    BamHeader long_read_header;      // The bam header object needed to fill bam context
+    BamHeader short_read_header;     // The bam header object needed to fill bam context
+    BamFileIn long_read_bam;         // The long read bam file
+    BamFileIn short_read_bam;        // THe short read bam file
+    BamIndex<Bai> long_read_bai;     // The bam index to the long read bam file
+    BamIndex<Bai> short_read_bai;    // The bam index to the short read bam file
+    SeqFileOut final_fa("final.fa"); // The current output fasta file to be mapped
+    ofstream log_file;               // The file to log all information
 
-    if (!vcf_file.is_open())
-    {
-        std::cerr << "ERROR: Could not open " << options.vcf_name << std::endl;
+    if (!open_file_success(input_vcf, options.candidate_file_name.c_str()) ||
+        !open_file_success(output_vcf, options.out_vcf_file_name.c_str()) ||
+        !open_file_success(long_read_bam, options.long_read_file_name.c_str()) ||
+        !open_file_success(short_read_bam, options.short_read_file_name.c_str()) ||
+        !open_file_success(long_read_bai, (options.long_read_file_name + ".bai").c_str()) ||
+        !open_file_success(short_read_bai, (options.short_read_file_name + ".bai").c_str()) ||
+        !open_file_success(faiIndex, options.reference_file_name.c_str()) ||
+        !open_file_success(log_file, options.log_file_name.c_str()))
         return 1;
-    }
 
-    if (!open(bamfileIn, options.bam_name.c_str()))
-    {
-        std::cerr << "ERROR: Could not open " << options.bam_name << std::endl;
-        return 1;
-    }
+    std::cout << "----------------------------------------------------------------------" << std::endl
+              << "START polishing variants in of file" << options.candidate_file_name << std::endl
+              << "----------------------------------------------------------------------" << std::endl;
 
-    if (!open(faiIndex, options.reference_name.c_str()))
-    {
-        std::cout << "ERROR: Could not load FAI index " << options.reference_name << ".fai\n";
-        return 1;
-    }
-
-    // Read Variant
+    // Read bam file header
     // -------------------------------------------------------------------------
-    std::string line;
-    Variant var;
-    while (getline(vcf_file, line)) // get first variant in file
+    // This is neccessary for the bam file context (containing reference ids and
+    // more) is correctly initialized.
+    readHeader(long_read_header, long_read_bam);
+    readHeader(short_read_header, short_read_bam);
+
+    // Scip VCF header
+    // -------------------------------------------------------------------------
+    std::string line{"#"};
+    while (line[0] == '#' && getline(input_vcf, line)) {}
+
+    do // per Variant
     {
-        if (line[0] != '#') // no header line
+
+        Variant var{line};
+
+        if (var.alt_seq != "<DEL>" && var.alt_seq != "<INS>")
         {
-            var = Variant(line); // read from file
-            break;
+            std::cout << "[ SKIP ] Variant " << var.ref_chrom << ":"
+                      << var.ref_pos << " of tpye " << var.alt_seq
+                      << " is currently not supported." << std::endl;
+            continue;
         }
-    }
 
-    // Compute some parameters
-    // -------------------------------------------------------------------------
-    unsigned ref_fai_idx = 0;
-    if (!getIdByName(ref_fai_idx, faiIndex, var.ref_chrom))
-    {
-        std::cout << "ERROR: FAI index has no entry for " << var.ref_chrom<< std::endl;
-        return 1;
-    }
-    int ref_length = sequenceLength(faiIndex, ref_fai_idx);
-    int ref_region_start = max(0, var.ref_pos - options.flanking_region);
-    int ref_region_end   = min(ref_length, var.ref_pos_end + options.flanking_region); // TODO remove dirty cast
-
-    // -------------------------------------------------------------------------
-    // Merge supplementary alignments to primary
-    // -------------------------------------------------------------------------
-    vector<BamAlignmentRecord> merged_records;
-    BamAlignmentRecord record;
-    vector<BamAlignmentRecord> record_group;
-
-    // empty file must be check here otherwise the first read record will fail
-    if (atEnd(bamfileIn))
-        return 0;
-
-    while (!atEnd(bamfileIn))
-    {
-        readRecord(record, bamfileIn);
-
-        if (!record_group.empty() &&
-            (record_group[record_group.size() - 1]).qName != record.qName)
+        // Compute reference length, start and end position of the variant
+        // ---------------------------------------------------------------------
+        unsigned ref_fai_idx = 0;
+        if (!getIdByName(ref_fai_idx, faiIndex, var.ref_chrom))
         {
-            BamAlignmentRecord merged_record = process_record_group(record_group);
-            merged_records.push_back(merged_record);
-            record_group.clear();
-            record_group.push_back(record);
+            log_file << "[ERROR]: FAI index has no entry for reference name"
+                     << var.ref_chrom << std::endl;
+            return 1;
         }
-        else
+
+        int ref_length = sequenceLength(faiIndex, ref_fai_idx);
+        int ref_region_start = max(0, var.ref_pos - options.flanking_region);
+        int ref_region_end   = min(ref_length, var.ref_pos_end + options.flanking_region);
+
+        // Extract long reads
+        // ---------------------------------------------------------------------
+        vector<BamAlignmentRecord> ont_reads = view_bam(long_read_bam,
+                                                        long_read_bai,
+                                                        var.ref_chrom,
+                                                        var.ref_pos - 50,
+                                                        var.ref_pos_end + 50,
+                                                        true);
+        if (ont_reads.size() == 0)
         {
-            record_group.push_back(record);
+            log_file << "[ ERROR1 ] No long reads in reference region "
+                     << var.ref_chrom << " [" << ref_region_start << "-"
+                     << ref_region_end << "]" << std::endl;
+            continue;
         }
-    }
-    //process last group
-    BamAlignmentRecord merged_record = process_record_group(record_group);
-    merged_records.push_back(merged_record);
 
-    if (options.verbose)
-        cout << "--- After merging, " << merged_records.size() << " record(s) remain(s)." << endl;
+        log_file << "--- Found " << ont_reads.size() << " read(s) in reference region ["
+                 << ref_region_start << "-" << ref_region_end << std::endl;
 
-    // -------------------------------------------------------------------------
-    // Search for supporting reads
-    // -------------------------------------------------------------------------
-    vector<BamAlignmentRecord> supporting_records;
-    // TODO check if var is not empty!
-    if (options.verbose)
-        cout << "Searchin in reference region ["
-             << (int)(var.ref_pos - DEV_POS * var.sv_length) << "-"
-             << (int)(var.ref_pos + var.sv_length + DEV_POS * var.sv_length) << "]"
-             << " for a variant of type " << var.sv_type
-             << " of length " << (int)(var.sv_length - DEV_SIZE * var.sv_length) << "-"
-             << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << endl;
 
-    for (auto rec : merged_records)
-        if (is_supporting(rec, var))
-            supporting_records.push_back(rec);
+        // Merge supplementary alignments to primary
+        // ---------------------------------------------------------------------
+        ont_reads = merge_alignments(ont_reads);
 
-    if (options.verbose)
-        cout << "--- After searching for variant <"
-             << var.sv_type << ":" << var.ref_chrom << ":" << var.ref_pos << ":" << var.sv_length
-             << "> " << supporting_records.size()
-             << ", record(s) remain(s)." << endl;
+        log_file << "--- After merging " << ont_reads.size() << " read(s) remain(s)." << endl;
 
-    // -------------------------------------------------------------------------
-    // Crop fasta sequence of each supporting read for consensus
-    // -------------------------------------------------------------------------
-    if (options.verbose)
-    {
-        cout << "--- Cropping read regions +-" << options.flanking_region << " around variants." << endl;
-        cout << "--- Referene Region: [" << ref_region_start << "-" << ref_region_end << "]" << endl;
-        cout << "--- Corresponding Regions & Lengths in long reads:" << endl;
-    }
+        // Search for supporting reads
+        // ---------------------------------------------------------------------
+        vector<BamAlignmentRecord> supporting_records;
+        // TODO check if var is not empty!
 
-    StringSet<DnaString> supporting_sequences;
+        log_file << "--- Searchin in reference region ["
+                 << (int)(var.ref_pos - DEV_POS * var.sv_length) << "-"
+                 << (int)(var.ref_pos + var.sv_length + DEV_POS * var.sv_length) << "]"
+                 << " for a variant of type " << var.sv_type
+                 << " of length " << (int)(var.sv_length - DEV_SIZE * var.sv_length) << "-"
+                 << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << endl;
 
-    for (auto rec : supporting_records)
-    {
-        auto region = get_read_region_boundaries(rec, ref_region_start, ref_region_end);
-        DnaString reg = infix(rec.seq, get<0>(region), get<1>(region));
-        appendValue(supporting_sequences, reg);
+        for (auto const & rec : ont_reads)
+            if (is_supporting(rec, var))
+                supporting_records.push_back(rec);
 
-        if (options.verbose)
+        if (supporting_records.size() == 0)
         {
-            cout << "------ [" << get<0>(region) << "-" << get<1>(region) << "] L:" << length(reg) << endl;
+            std::cout << "[ ERROR2 ] No supporting reads in reference region "
+                      << var.ref_chrom << " [" << ref_region_start << "-"
+                      << ref_region_end << "]" << std::endl;
+            continue;
         }
+
+        log_file << "--- After searching " << supporting_records.size()
+                 << " read(s) remain." << std::endl;
+
+        // Crop fasta sequence of each supporting read for consensus
+        // ---------------------------------------------------------------------
+        log_file << "--- Cropping read regions +-" << options.flanking_region << " around variants." << endl;
+        log_file << "--- Referene Region: [" << ref_region_start << "-" << ref_region_end << "]" << endl;
+        log_file << "--- Corresponding Regions & Lengths in long reads:" << endl;
+
+
+        StringSet<DnaString> supporting_sequences;
+
+        for (auto rec : supporting_records)
+        {
+            auto region = get_read_region_boundaries(rec, ref_region_start, ref_region_end);
+            DnaString reg = infix(rec.seq, get<0>(region), get<1>(region));
+            appendValue(supporting_sequences, reg);
+
+            log_file << "------ [" << get<0>(region) << "-" << get<1>(region) << "] L:" << length(reg) << endl;
+        }
+
+        // Build consensus of supporting read regions
+        // ---------------------------------------------------------------------
+        log_file << "--- Building a consensus with a multiple sequence alignment." << endl;
+
+        vector<double> mapping_qualities;
+        mapping_qualities.resize(supporting_records.size());
+        for (unsigned i = 0; i < supporting_records.size(); ++i)
+        {
+            mapping_qualities[i] = (supporting_records[i]).mapQ;
+        }
+
+        DnaString consensus_sequence = build_consensus(supporting_sequences, mapping_qualities);
+
+        // Extract short reads in region
+        // ---------------------------------------------------------------------
+        StringSet<Dna5QString> short_reads_1; // first in pair
+        StringSet<Dna5QString> short_reads_2; // second in pair
+        StringSet<CharString> short_ids_1; // first in pair
+        StringSet<CharString> short_ids_2; // first in pair
+
+        vector<BamAlignmentRecord> short_reads = view_bam(short_read_bam,
+                                                          short_read_bai,
+                                                          var.ref_chrom,
+                                                          ref_region_start,
+                                                          ref_region_end,
+                                                          false);
+
+        BamFileOut tmp(context(short_read_bam), "tmp.sam");
+        for (auto const & rec : short_reads)
+            writeRecord(tmp, rec);
+
+        log_file << "--- Extracted " << short_reads.size() << " short reads."
+                 << " in region "<< ref_region_start << "-"
+                 << ref_region_end << "]" << std::endl;
+
+        records_to_read_pairs(short_reads_1, short_ids_1,
+                              short_reads_2, short_ids_2,
+                              short_reads, short_read_bam, short_read_bai);
+
+        log_file << "--- Those lead to " << length(short_reads_1) << " pairs." << std::endl;
+        // Flank consensus sequence
+        // ---------------------------------------------------------------------
+        // Before polishing, append a reference flank of length 150 (illumina
+        // read length) to the conesnsus such that the reads find a high quality
+        // anchor for mapping.
+        String<char> id = "consensus";
+        Dna5String ref = append_ref_flanks(consensus_sequence, faiIndex,
+                                           ref_fai_idx, ref_length,
+                                           ref_region_start, ref_region_end, 150);
+
+        // Polish flanked consensus sequence with short reads
+        // ---------------------------------------------------------------------
+        ConsensusConfig config{}; // default
+        config.verbose = options.verbose;
+        compute_baseQ_stats(config, short_reads_1, short_reads_2);
+
+        Dna5String polished_ref = polish_to_perfection(short_reads_1, short_ids_1,
+                                                       short_reads_2, short_ids_2,
+                                                       ref, id, config);
+
+        // Flank polished sequence
+        // ---------------------------------------------------------------------
+        // Append large reference flank for better mapping results of long reads.
+        Dna5String final_sequence = append_ref_flanks(polished_ref,
+                                                      faiIndex, ref_fai_idx,
+                                                      ref_length,
+                                                      ref_region_start - 150,
+                                                      ref_region_end + 150,
+                                                      4850);
+
+        // Print polished and flanked sequence to file
+        // ---------------------------------------------------------------------
+        std::string read_identifier = (string("final") +
+                                       "_" + var.ref_chrom +
+                                       "_" + to_string(var.ref_pos) +
+                                       "_" + var.id); // this name is important for evaluating
+        writeRecord(final_fa, read_identifier, final_sequence);
+
+        std::cout << "[ SUCCESS ] Polished variant " << var.ref_chrom << ":"
+                  << var.ref_pos << "\t\t" << var.alt_seq << std::endl;
     }
-
-    // -------------------------------------------------------------------------
-    // Build consensus of supporting read regions
-    // -------------------------------------------------------------------------
-    if (options.verbose)
-        cout << "--- Building a consensus with a multiple sequence alignment." << endl;
-
-    if (supporting_records.size() == 0)
-    {
-        cerr << "[ERROR] No supporting reads found." << endl;
-        return 1;
-    }
-
-    vector<double> mapping_qualities;
-    mapping_qualities.resize(supporting_records.size());
-    for (unsigned i = 0; i < supporting_records.size(); ++i)
-    {
-        mapping_qualities[i] = (supporting_records[i]).mapQ;
-    }
-
-    DnaString consensus_sequence = build_consensus(supporting_sequences, mapping_qualities);
-
-    // -------------------------------------------------------------------------
-    // Write consensus sequence to output file
-    // -------------------------------------------------------------------------
-    if (options.verbose)
-    {
-        cout << "--- Writing consensus sequence to file consensus.fa ." << endl;
-        SeqFileOut seqFileOut("consensus.fa");
-        writeRecord(seqFileOut, "consensus", consensus_sequence);
-    }
-
-    // -------------------------------------------------------------------------
-    // Polish conensus
-    // -------------------------------------------------------------------------
-
-    // before polishing, append a reference flank of length 150 (illumina read length)
-    // to the conesnsus such that the reads find an anchor for mapping.
-    Dna5String leftFlank;
-    Dna5String rightFlank;
-    readRegion(leftFlank, faiIndex, ref_fai_idx, max(0, ref_region_start - 150), ref_region_start);
-    readRegion(rightFlank, faiIndex, ref_fai_idx, ref_region_end, min(ref_region_end + 150, ref_length));
-
-    String<char> id = "consensus";
-    Dna5String ref = leftFlank;
-    append(ref, consensus_sequence);
-    append(ref, rightFlank);
-
-    // now read in illumina files used for polishing
-    SeqFileIn illumina_file_pair1("illumina.paired1.fastq");
-    SeqFileIn illumina_file_pair2("illumina.paired2.fastq");
-
-    StringSet<String<char>> ids1;
-    StringSet<String<char>> ids2;
-    StringSet<Dna5QString> reads1; // read qualitites into sequence
-    StringSet<Dna5QString> reads2; // read qualitites into sequence
-
-    readRecords(ids1, reads1, illumina_file_pair1);
-    readRecords(ids2, reads2, illumina_file_pair2);
-
-    Dna5String old_ref;
-    ConsensusConfig config{}; // default
-    config.verbose = options.verbose;
-    compute_baseQ_stats(config, reads1, reads2);
-
-    unsigned round{1};
-
-    while (ref != old_ref && round < 20)
-    {
-        if (options.verbose)
-            cout << "-------------------------------- SNV ROUND " << round
-                 << "--------------------------------" << endl;
-
-        old_ref = ref; // store prior result
-        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-        ++round;
-        // break;
-    }
-
-    // after all substitutions has been corrected, correct insertions/deletions a few times with only proper pairs
-    config.fix_indels = true;
-    for (unsigned i= 0; i < 10; ++i)
-    {
-        if (options.verbose)
-            cout << "-------------------------------- INDEL ROUND " << i
-                 << "--------------------------------" << endl;
-
-        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-        ++round;
-        // break;
-    }
-
-    config.only_proper_pairs = false;
-    old_ref = ""; // reset
-    while (ref != old_ref && round < 50)
-    {
-        if (options.verbose)
-            cout << "-------------------------------- INDEL NO PAIRS ROUND " << round
-                 << "--------------------------------" << endl;
-
-        old_ref = ref; // store prior result
-        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-        ++round;
-        // break;
-    }
-
-    // append large reference flank for better mapping results of long reads
-    Dna5String leftLargeFlank;
-    Dna5String rightLargeFlank;
-    readRegion(leftLargeFlank, faiIndex, ref_fai_idx,
-               max(0, ref_region_start - 5000), max(0, ref_region_start - 150));
-    readRegion(rightLargeFlank, faiIndex, ref_fai_idx,
-               min(ref_region_end + 150, ref_length), min(ref_region_end + 5000, ref_length));
-
-    Dna5String final_sequence = leftLargeFlank;
-    append(final_sequence, ref);
-    append(final_sequence, rightLargeFlank);
-
-    SeqFileOut final(("final.fa"));
-    writeRecord(final, (string("final") + "_" + var.ref_chrom + "_" + to_string(var.ref_pos) + "_" + var.id), final_sequence);
+    while (getline(input_vcf, line));
 
     return 0;
 }

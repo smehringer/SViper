@@ -44,6 +44,17 @@ BamAlignmentRecord map_single_read(Dna5QString read,       // copy for gaps obje
     int const GAP_OPEN = -3;
     int const GAP_EXT = -1;
 
+    if (length(read) == 0)
+    {
+        // return unmapped read
+        BamAlignmentRecord record;
+        record.qName = id;
+        record.rID = BamAlignmentRecord::INVALID_REFID;
+        record.beginPos = BamAlignmentRecord::INVALID_POS;
+        record.tLen = BamAlignmentRecord::INVALID_LEN;
+        return record;
+    }
+
     Dna5QString readRC = read; // copy for reverse complementing in place
     Dna5String refRC  = ref;   // copy for assigning to gaps as ref
 
@@ -133,15 +144,23 @@ inline void paired_mapping(StringSet<Dna5QString> const & reads,
     for (unsigned i = 0; i < length(reads); ++i)
     {
         if (ids[i] != ids2[i])
-            throw std::ios_base::failure("paired end data are not correct");
+            throw std::ios_base::failure("[ERROR] mapping - paired end data are not correct");
 
         BamAlignmentRecord record1 = map_single_read(reads[i], ids[i], ref);
+
+        if (length(reads2[i]) == 0) // if mate is a dummy mate
+        {
+            #pragma omp critical
+            write(pseudo_bamfile, record1, bamIOContext, Sam());
+            continue;
+        }
+
         BamAlignmentRecord record2 = map_single_read(reads2[i], ids2[i], ref);
 
         record1.pNext = record2.beginPos;
-        record2.pNext = record2.beginPos;
-        record1.rNextId = 0; // ref is the same
-        record2.rNextId = 0; // ref is the same
+        record2.pNext = record1.beginPos;
+        record1.rNextId = record2.rID;
+        record2.rNextId = record1.rID;
 
         // right now, the records only have a flag for reverse set
         if (hasFlagRC(record2))
@@ -188,6 +207,7 @@ struct ConsensusConfig
     double mappQ_std{1};  // will be overriden every round after mapping
     double alpha{1}; // scaling factor such that mapping and base quality are comparable
     double mean_coverage{0};
+    double min_coverage{4};
 
     /* [used in fill_profiles
      * Returns the value to be added to the profile. A profile consists of counts
@@ -210,7 +230,7 @@ struct ConsensusConfig
     {
         /* return true if score is at least as good as half the mean coverage
          * of bases with half as good quality as the mean quality*/
-        return score >= (mean_coverage/2 * (baseQ_mean + mappQ_mean/alpha) / 4);
+        return score >= (max(min_coverage, mean_coverage/2) * (baseQ_mean + mappQ_mean/alpha) / 4);
     }
 };
 
@@ -307,26 +327,25 @@ inline void fill_profiles(String<ProfileChar<Dna5, double> > & quali_profile,
     {
         TAlignedRead  const & ar = store.alignedReadStore[i];              // aligned read
         TAlignQuality const & aq = store.alignQualityStore[i];             // aligned quality
-        TAlignedRead  const & am = store.alignedReadStore[readId2alignId[ar.pairMatchId]]; // aligned mate
-
-        SEQAN_ASSERT_EQ(store.readNameStore[ar.readId], store.readNameStore[am.readId]);
 
         if (ar.contigId != 0) // not aligned to first contig, which is the consensus sequence
             continue;
 
-        // If read is in proper pair, the quality counts twice for the profile
-        // since this read can be trusted
         bool is_proper_pair{false};
-        if (!(ar.endPos < ar.beginPos /* ar (-)*/ && am.endPos > am.beginPos /*am (+)*/ && am.endPos < ar.beginPos /*am maps before ar*/) &&
-            !(ar.endPos > ar.beginPos /* ar (+)*/ && am.endPos < am.beginPos /*am (-)*/ && ar.endPos < am.beginPos /*ar maps before am*/)) // TODO incoorparate correct insert size
+        // check if read is aligned in proper pair
+        if (ar.pairMatchId != TAlignedRead::INVALID_ID)
         {
-            if (config.only_proper_pairs)
-                continue;
+            TAlignedRead const & am = store.alignedReadStore[readId2alignId[ar.pairMatchId]]; // aligned mate
+
+            SEQAN_ASSERT_EQ(store.readNameStore[ar.readId], store.readNameStore[am.readId]);
+
+            if ((ar.endPos < ar.beginPos /*(-)*/ && am.endPos > am.beginPos /*(+)*/ && am.endPos < ar.beginPos /*am maps before ar*/) ||
+                (ar.endPos > ar.beginPos /*(+)*/ && am.endPos < am.beginPos /*(-)*/ && ar.endPos < am.beginPos /*ar maps before am*/)) // TODO incoorparate correct insert size
+                is_proper_pair = true;
         }
-        else
-        {
-            is_proper_pair = true;
-        }
+
+        if (config.only_proper_pairs && !is_proper_pair)
+            continue;
 
         readSeq = store.readSeqStore[ar.readId];
         if (ar.endPos < ar.beginPos)
@@ -529,8 +548,6 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
         cout << "### Mapping..." << endl;
     paired_mapping(reads1, ids1, reads2, ids2, ref, id); // creates pseudo.sam for FragmentStore
 
-    if (config.verbose)
-        cout << "### Create Fragment Store..." << endl;
     TFragmentStore store;
     // loadContigs(store, "consensus.fa");
     appendValue(store.contigNameStore, id);
@@ -554,14 +571,7 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
     compute_mappQ_stats(config, store);
     config.alpha = config.mappQ_mean/config.baseQ_mean;
     fill_profiles(quali_profile, cover_profile, store, config);
-    if (config.verbose)
-        cout << "Mapping Quality mean: " << config.mappQ_mean << " and std: " << config.mappQ_std << endl
-             << "Base Quality mean: "    << config.baseQ_mean << " and std: " << config.baseQ_std << endl;
 
-    print_profile(quali_profile, store);
-
-    if (config.verbose)
-        cout << "## stats:" << endl;
     double mean_coverage{0};
     for (auto const & p : cover_profile)
     {
@@ -569,9 +579,9 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
     }
     config.mean_coverage = mean_coverage/length(cover_profile);
 
-
     if (config.verbose)
-        std::cout << config.mean_coverage << endl;
+        cout << "### MappQ avg: " << config.mappQ_mean << " and std: " << config.mappQ_std
+             << ". Cov: " << config.mean_coverage << endl;
 
     if (config.verbose)
         cout << "### Build new consensus... length before: " << length(ref) << endl;
@@ -582,10 +592,59 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
                                  contigGaps,
                                  config);
 
+    // UNCOMMENT THIS FOR PRETTY DEBUGGING OUTPUT:
+    // print_profile(quali_profile, store);
     // cout << "### Layout alignment for debug and print profile..." << endl;
     // AlignedReadLayout layout2;
     // layoutAlignment(layout2, store);
     // printAlignment(std::cout, layout2, store, 0, 0, 1550, 0, 46);
+
+    return ref;
+}
+
+Dna5String polish_to_perfection(StringSet<Dna5QString> const & reads1,
+                                StringSet<String<char>> const & ids1,
+                                StringSet<Dna5QString> const & reads2,
+                                StringSet<String<char>> const & ids2,
+                                Dna5String ref,
+                                CharString id,
+                                ConsensusConfig & config)
+{
+    Dna5String old_ref;
+
+    unsigned round{1};
+
+    if (config.verbose)
+        std::cout << "Number of short reads: " << (length(reads1) * 2)
+                  << ". Base Quality mean: " << config.baseQ_mean
+                  << " and std: " << config.baseQ_std << std::endl;
+
+    while (ref != old_ref && round < 20)
+    {
+        old_ref = ref; // store prior result
+        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
+        ++round;
+        // break;
+    }
+
+    // after all substitutions has been corrected, correct insertions/deletions a few times with only proper pairs
+    config.fix_indels = true;
+    for (unsigned i= 0; i < 10; ++i)
+    {
+        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
+        ++round;
+        // break;
+    }
+
+    config.only_proper_pairs = false;
+    old_ref = ""; // reset
+    while (ref != old_ref && round < 50)
+    {
+        old_ref = ref; // store prior result
+        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
+        ++round;
+        // break;
+    }
 
     return ref;
 }

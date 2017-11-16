@@ -99,12 +99,6 @@ struct Variant
                                              info.substr(n+4, info.find(';', n) - n - 4)+
                                              " of variant " + ref_chrom + ":" + to_string(ref_pos) +
                                              " could not be read.");
-            if (ref_pos_end < ref_pos)
-                throw std::iostream::failure("ERROR when reading vcf file. END value "+
-                                             info.substr(n+4, info.find(';', n) - n - 4)+
-                                             " of variant " + ref_chrom + ":" + to_string(ref_pos) +
-                                             " is larger than start pos " + to_string(ref_pos));
-
         }
         else
         {
@@ -191,16 +185,6 @@ unsigned compute_fragment_length(String<CigarElement<char, unsigned>> & cigar)
     return len;
 }
 
-struct customLess
-{
-    bool operator()(BamAlignmentRecord lhs, BamAlignmentRecord rhs) const
-    {
-        if (!hasFlagSupplementary(lhs) && !hasFlagSecondary(lhs))
-            return false;
-        return lhs.qual < rhs.qual;
-    }
-};
-
 struct recordQualityLess
 {
     bool operator()(BamAlignmentRecord lhs, BamAlignmentRecord rhs) const
@@ -208,38 +192,6 @@ struct recordQualityLess
         return lhs.qual < rhs.qual;
     }
 };
-
-unsigned get_read_begin_and_alter_cigar(BamAlignmentRecord & record)
-{
-    unsigned read_begin_pos{0};
-    if ((record.cigar[0]).operation == 'H') // hard clipping
-    {
-        read_begin_pos += (record.cigar[0]).count;
-        erase(record.cigar, 0);
-    }
-    if ((record.cigar[0]).operation == 'S') // soft clipping
-    {
-        read_begin_pos += (record.cigar[0]).count;
-        erase(record.cigar, 0);
-    }
-    return read_begin_pos;
-}
-
-unsigned get_read_end_and_alter_cigar(BamAlignmentRecord & record)
-{
-    unsigned read_end_pos{length(record.seq) - 1};
-    if ((record.cigar[length(record.cigar) - 1]).operation == 'H') // hard clipping
-    {
-        read_end_pos -= (record.cigar[length(record.cigar) - 1]).count;
-        erase(record.cigar, length(record.cigar) - 1);
-    }
-    if ((record.cigar[length(record.cigar) - 1]).operation == 'S') // soft clipping
-    {
-        read_end_pos -= (record.cigar[length(record.cigar) - 1]).count;
-        erase(record.cigar, length(record.cigar) - 1);
-    }
-    return read_end_pos;
-}
 
 template <typename lambda_type>
 void advance_in_cigar(unsigned & cigar_pos,
@@ -272,170 +224,6 @@ void advance_in_cigar(unsigned & cigar_pos,
     }
 }
 
-void truncate_cigar_right(BamAlignmentRecord & record, int until)
-{
-    unsigned cigar_pos{0};
-    int read_pos{0};
-    int ref_pos{record.beginPos};
-    advance_in_cigar(cigar_pos,
-                     ref_pos,
-                     read_pos,
-                     record.cigar,
-                     [&until] (int /*ref*/, int read) {return read >= (until - 1);});
-
-    erase(record.cigar, cigar_pos, length(record.cigar)); // erase the rest
-
-    if (read_pos > (until -1))
-    {
-        (record.cigar[length(record.cigar) - 1]).count -= (read_pos - until);
-    }
-}
-
-unsigned truncate_cigar_left(BamAlignmentRecord & record, int until)
-{
-    unsigned num_truncated_bases{0};
-
-    unsigned cigar_pos{0};
-    int ref_pos{record.beginPos};
-    int read_pos{0};
-    advance_in_cigar(cigar_pos,
-                     ref_pos,
-                     read_pos,
-                     record.cigar,
-                     [&until] (int /*ref*/, int read) {return read >= (until + 1);});
-
-    num_truncated_bases += ref_pos - record.beginPos;
-    erase(record.cigar, 0, cigar_pos - 1); // erase the overlapping beginning
-
-    if (read_pos == (until + 1))
-    {
-        erase(record.cigar, 0);
-    }
-    else if (read_pos > (until + 1))
-    {
-        if ((record.cigar[0]).operation == 'M')
-            num_truncated_bases -= (read_pos - until - 1);
-        (record.cigar[0]).count = (read_pos - until - 1); // why -1 ?
-    }
-    return num_truncated_bases;
-}
-
-BamAlignmentRecord process_record_group(vector<BamAlignmentRecord> & record_group)
-{
-    // cout << (record_group[0]).qName << "\t" << record_group.size() << endl;
-
-    // we now have all reads with the same name, given that the file was sorted
-    // sort alignment by quality but put primary alignment on top.
-    std::sort(record_group.begin(), record_group.end(), customLess());
-    BamAlignmentRecord final_record = record_group[0];
-
-    if (verbose)
-        cout << "Merging group of " << record_group.size() << " with name " << final_record.qName << "\t" << endl;
-
-    // now check for supplementary alignment that can be merged
-    for (unsigned i = 1; i < record_group.size(); ++i)
-    {
-        BamAlignmentRecord supp_record{record_group[i]};
-
-        if (!hasFlagSupplementary(supp_record)) // only want to merge supplementary alignments (not secondary)
-            continue;
-        if (final_record.rID != supp_record.rID) // reference must be the same
-            continue;
-        if ((hasFlagRC(final_record) && !hasFlagRC(supp_record)) || // orientation must be the same
-            (!hasFlagRC(final_record) && hasFlagRC(supp_record)))
-            continue;
-
-        if (compute_map_end_pos(supp_record.beginPos, supp_record.cigar) < final_record.beginPos)
-        {
-            // supp before final, non overlapping
-            if (verbose)
-                cout << "Merging supplementary alignment on the left to primary on the right." << endl;
-
-            // Alter cigar string
-            // 1) remove soft clipping at the left end from the right alignment
-            unsigned final_read_begin = get_read_begin_and_alter_cigar(final_record);
-            // 2) Cut left alignment at the right end such that the read
-            // seequence does not overlap.
-            truncate_cigar_right(supp_record, final_read_begin);
-            // 3) append clipped bases, because there can't be clipping in the middle
-            if ((supp_record.cigar[length(supp_record.cigar) - 1]).operation != 'M' &&
-                (supp_record.cigar[length(supp_record.cigar) - 1]).operation != 'I') // meaning == H,S or D
-            {
-                (supp_record.cigar[length(supp_record.cigar) - 1]).operation = 'M'; // add those bases
-            }
-            // 4) concatenate cropped cigar string to one big one with a deletion inside
-            int deletion_size = final_record.beginPos - compute_map_end_pos(supp_record.beginPos, supp_record.cigar);
-            appendValue(supp_record.cigar, CigarElement<char, unsigned>('D', deletion_size));
-            append(supp_record.cigar, final_record.cigar);
-
-            // replace final variables
-            final_record.beginPos = supp_record.beginPos;
-            final_record.cigar = supp_record.cigar;
-
-            // update mapping info needed for evaluataion
-            BamTagsDict fin_tagsDict(final_record.tags);
-            BamTagsDict sup_tagsDict(supp_record.tags);
-            int fin_id{-1};
-            int sup_id{-1};
-            findTagKey(fin_id, fin_tagsDict, "NM");
-            findTagKey(sup_id, sup_tagsDict, "NM");
-            int fin_nm{0};
-            int sup_nm{0};
-            if (fin_id != -1)
-                extractTagValue(fin_nm, fin_tagsDict, fin_id);
-            if (sup_id != -1)
-                extractTagValue(sup_nm, sup_tagsDict, sup_id);
-            setTagValue(fin_tagsDict, "NM", fin_nm + sup_nm + deletion_size);
-        }
-        else if (compute_map_end_pos(final_record.beginPos, final_record.cigar) < supp_record.beginPos)
-        {
-            // final before supp
-            if (verbose)
-                cout << "Merging supplementary alignment on the right to primary on the left." << endl;
-
-            // Alter cigar string
-            // 1) remove soft clipping at the right end from the left alignment
-            unsigned final_read_end = get_read_end_and_alter_cigar(final_record);
-            // 2) Cut right alignment at the left end such that the read
-            // seequence does not overlap.
-            unsigned num_truncated_bases = truncate_cigar_left(supp_record, final_read_end);
-            // 3) append clipped bases, because there can't be clipping in the middle
-            if ((supp_record.cigar[0]).operation != 'M' &&
-                (supp_record.cigar[0]).operation != 'I') // meaning == H,S or D
-            {
-                (supp_record.cigar[0]).operation = 'M'; // add those bases
-            }
-            // 4) concatenate cropped cigar string to one big one with a deletion inside
-            int deletion_size = supp_record.beginPos + num_truncated_bases - compute_map_end_pos(final_record.beginPos, final_record.cigar);
-            appendValue(final_record.cigar, CigarElement<char, unsigned>('D', deletion_size));
-            append(final_record.cigar, supp_record.cigar);
-
-            // update mapping info needed for evaluataion
-            BamTagsDict fin_tagsDict(final_record.tags);
-            BamTagsDict sup_tagsDict(supp_record.tags);
-            int fin_id{-1};
-            int sup_id{-1};
-            findTagKey(fin_id, fin_tagsDict, "NM");
-            findTagKey(sup_id, sup_tagsDict, "NM");
-            int fin_nm{0};
-            int sup_nm{0};
-            if (fin_id != -1)
-                extractTagValue(fin_nm, fin_tagsDict, fin_id);
-            if (sup_id != -1)
-                extractTagValue(sup_nm, sup_tagsDict, sup_id);
-            setTagValue(fin_tagsDict, "NM", fin_nm + sup_nm + deletion_size);
-        }
-    }
-
-    if (verbose)
-        if (length(final_record.seq) != compute_fragment_length(final_record.cigar))
-            cerr << "[ERROR] CIGAR and sequence length don't match: "
-                 << length(final_record.seq) << "(seq length) != "
-                 << compute_fragment_length(final_record.cigar)
-                 << "(cigar length)." << endl;
-
-    return final_record;
-}
 
 bool is_same_sv_type(char cigar, SV_TYPE type)
 {
