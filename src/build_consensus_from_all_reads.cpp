@@ -9,6 +9,8 @@
 #include <seqan/graph_msa.h>
 
 #include <helper_functions.h>
+#include <basics.h>
+#include <merge_split_alignments.h>
 
 using namespace std;
 using namespace seqan;
@@ -107,7 +109,7 @@ int main(int argc, char const ** argv)
         if (!record_group.empty() &&
             (record_group[record_group.size() - 1]).qName != record.qName)
         {
-            BamAlignmentRecord merged_record = process_record_group(record_group);
+            BamAlignmentRecord merged_record = merge_record_group(record_group);
             merged_records.push_back(merged_record);
             record_group.clear();
             record_group.push_back(record);
@@ -118,7 +120,7 @@ int main(int argc, char const ** argv)
         }
     }
     //process last group
-    BamAlignmentRecord merged_record = process_record_group(record_group);
+    BamAlignmentRecord merged_record = merge_record_group(record_group);
     merged_records.push_back(merged_record);
     if (verbose)
         cout << "--- After merging, " << merged_records.size() << " record(s) remain(s)." << endl;

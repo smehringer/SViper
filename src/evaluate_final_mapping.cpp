@@ -9,6 +9,7 @@
 #include <seqan/graph_msa.h>
 
 #include <helper_functions.h>
+#include <merge_split_alignments.h>
 
 using namespace std;
 using namespace seqan;
@@ -77,7 +78,7 @@ int main(int argc, char ** argv)
         if (!record_group.empty() &&
             (record_group[record_group.size() - 1]).qName != record.qName)
         {
-            BamAlignmentRecord merged_record = process_record_group(record_group);
+            BamAlignmentRecord merged_record = merge_record_group(record_group);
 
             // Evaluate alignment and ouput new polished variant
             // -----------------------------------------------------------------
@@ -94,7 +95,7 @@ int main(int argc, char ** argv)
     }
 
     //process last group
-    BamAlignmentRecord merged_record = process_record_group(record_group);
+    BamAlignmentRecord merged_record = merge_record_group(record_group);
     Variant polished_variant = evaluate_alignment(merged_record, variant_map);
     polished_variant.write(vcf_file_out);
 
