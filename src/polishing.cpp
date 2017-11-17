@@ -178,8 +178,15 @@ int main(int argc, char const ** argv)
             std::cout << "[ SKIP ] Variant " << var.ref_chrom << ":"
                       << var.ref_pos << " of tpye " << var.alt_seq
                       << " is currently not supported." << std::endl;
+            log_file << "----------------------------------------------------------------------" << std::endl
+                     << " SKIP Variant " << var.ref_chrom << ":" << var.ref_pos << " of tpye " << var.alt_seq << std::endl
+                     << "----------------------------------------------------------------------" << std::endl;
             continue;
         }
+
+        log_file << "----------------------------------------------------------------------" << std::endl
+                 << " PROCESS Variant " << var.ref_chrom << ":" << var.ref_pos << " of tpye " << var.alt_seq << std::endl
+                 << "----------------------------------------------------------------------" << std::endl;
 
         // Compute reference length, start and end position of the variant
         // ---------------------------------------------------------------------
@@ -195,43 +202,40 @@ int main(int argc, char const ** argv)
         int ref_region_start = max(0, var.ref_pos - options.flanking_region);
         int ref_region_end   = min(ref_length, var.ref_pos_end + options.flanking_region);
 
+        log_file << "Reference region " << var.ref_chrom << ":" << ref_region_start << "-" << ref_region_end << std::endl;
+
         // Extract long reads
         // ---------------------------------------------------------------------
-        vector<BamAlignmentRecord> ont_reads = view_bam(long_read_bam,
-                                                        long_read_bai,
-                                                        var.ref_chrom,
-                                                        var.ref_pos - 50,
-                                                        var.ref_pos_end + 50,
-                                                        true);
+        vector<BamAlignmentRecord> ont_reads;
+        view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, var.ref_pos - 50, var.ref_pos_end + 50, true);
+
         if (ont_reads.size() == 0)
         {
             log_file << "[ ERROR1 ] No long reads in reference region "
-                     << var.ref_chrom << " [" << ref_region_start << "-"
-                     << ref_region_end << "]" << std::endl;
+                     << var.ref_chrom << ":" << ref_region_start << "-"
+                     << ref_region_end << std::endl;
             continue;
         }
 
-        log_file << "--- Found " << ont_reads.size() << " read(s) in reference region ["
-                 << ref_region_start << "-" << ref_region_end << std::endl;
-
+        log_file << "--- Extracted " << ont_reads.size() << " long read(s)" << std::endl;
 
         // Merge supplementary alignments to primary
         // ---------------------------------------------------------------------
         ont_reads = merge_alignments(ont_reads);
 
-        log_file << "--- After merging " << ont_reads.size() << " read(s) remain(s)." << endl;
+        log_file << "--- After merging " << ont_reads.size() << " read(s) remain(s)." << std::endl;
 
         // Search for supporting reads
         // ---------------------------------------------------------------------
         vector<BamAlignmentRecord> supporting_records;
         // TODO check if var is not empty!
 
-        log_file << "--- Searchin in reference region ["
+        log_file << "--- Searchin in (reference) region ["
                  << (int)(var.ref_pos - DEV_POS * var.sv_length) << "-"
                  << (int)(var.ref_pos + var.sv_length + DEV_POS * var.sv_length) << "]"
-                 << " for a variant of type " << var.sv_type
+                 << " for a variant of type " << var.alt_seq
                  << " of length " << (int)(var.sv_length - DEV_SIZE * var.sv_length) << "-"
-                 << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << endl;
+                 << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << std::endl;
 
         for (auto const & rec : ont_reads)
             if (is_supporting(rec, var))
@@ -240,20 +244,17 @@ int main(int argc, char const ** argv)
         if (supporting_records.size() == 0)
         {
             std::cout << "[ ERROR2 ] No supporting reads in reference region "
-                      << var.ref_chrom << " [" << ref_region_start << "-"
-                      << ref_region_end << "]" << std::endl;
+                      << var.ref_chrom << ":" << ref_region_start << "-"
+                      << ref_region_end << std::endl;
             continue;
         }
 
-        log_file << "--- After searching " << supporting_records.size()
-                 << " read(s) remain." << std::endl;
+        log_file << "--- After searching for variant " << supporting_records.size()
+                 << " supporting read(s) remain." << std::endl;
 
         // Crop fasta sequence of each supporting read for consensus
         // ---------------------------------------------------------------------
-        log_file << "--- Cropping read regions +-" << options.flanking_region << " around variants." << endl;
-        log_file << "--- Referene Region: [" << ref_region_start << "-" << ref_region_end << "]" << endl;
-        log_file << "--- Corresponding Regions & Lengths in long reads:" << endl;
-
+        log_file << "--- Cropping long reads with a buffer of +-" << options.flanking_region << " around variants." << endl;
 
         StringSet<DnaString> supporting_sequences;
 
@@ -263,13 +264,11 @@ int main(int argc, char const ** argv)
             DnaString reg = infix(rec.seq, get<0>(region), get<1>(region));
             appendValue(supporting_sequences, reg);
 
-            log_file << "------ [" << get<0>(region) << "-" << get<1>(region) << "] L:" << length(reg) << endl;
+            log_file << "------ Region: [" << get<0>(region) << "-" << get<1>(region) << "] Length:" << length(reg) << " Name: "<< rec.qName << endl;
         }
 
         // Build consensus of supporting read regions
         // ---------------------------------------------------------------------
-        log_file << "--- Building a consensus with a multiple sequence alignment." << endl;
-
         vector<double> mapping_qualities;
         mapping_qualities.resize(supporting_records.size());
         for (unsigned i = 0; i < supporting_records.size(); ++i)
@@ -277,7 +276,9 @@ int main(int argc, char const ** argv)
             mapping_qualities[i] = (supporting_records[i]).mapQ;
         }
 
-        DnaString consensus_sequence = build_consensus(supporting_sequences, mapping_qualities);
+        DnaString cns = build_consensus(supporting_sequences, mapping_qualities);
+
+        log_file << "--- Built a consensus with a MSA of length " << length(cns) << "." << endl;
 
         // Extract short reads in region
         // ---------------------------------------------------------------------
@@ -286,20 +287,18 @@ int main(int argc, char const ** argv)
         StringSet<CharString> short_ids_1; // first in pair
         StringSet<CharString> short_ids_2; // first in pair
 
-        vector<BamAlignmentRecord> short_reads = view_bam(short_read_bam,
-                                                          short_read_bai,
-                                                          var.ref_chrom,
-                                                          ref_region_start,
-                                                          ref_region_end,
-                                                          false);
+        vector<BamAlignmentRecord> short_reads;
+        // extract reads left of the start of the variant [start-buffer, start]
+        view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, var.ref_pos, false);
+        // and right of the end of the variant [end, end+buffer]
+        view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, var.ref_pos_end, ref_region_end, false);
 
         records_to_read_pairs(short_reads_1, short_ids_1,
                               short_reads_2, short_ids_2,
                               short_reads, short_read_bam, short_read_bai);
 
-        log_file << "--- Extracted " << short_reads.size() << " short reads in"
-                 << length(short_reads_1) << " pairs (proper or dummy pairs)."
-                 << std::endl;
+        log_file << "--- Extracted " << short_reads.size() << " short reads that come in "
+                 << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
 
         // Flank consensus sequence
         // ---------------------------------------------------------------------
@@ -307,7 +306,7 @@ int main(int argc, char const ** argv)
         // read length) to the conesnsus such that the reads find a high quality
         // anchor for mapping.
         String<char> id = "consensus";
-        Dna5String ref = append_ref_flanks(consensus_sequence, faiIndex,
+        Dna5String ref = append_ref_flanks(cns, faiIndex,
                                            ref_fai_idx, ref_length,
                                            ref_region_start, ref_region_end, 150);
 
@@ -325,7 +324,7 @@ int main(int argc, char const ** argv)
                  << config.substituted_bases << " substituted, "
                  << config.deleted_bases     << " deleted and "
                  << config.inserted_bases    << " inserted bases."
-                 << std::endl;
+                 << std::endl << std::endl;
 
         // Flank polished sequence
         // ---------------------------------------------------------------------

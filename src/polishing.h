@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <cmath>
+#include <cassert>
 #include <utility> // pair
 
 #include <seqan/arg_parse.h>
@@ -172,18 +173,18 @@ inline void paired_mapping(StringSet<Dna5QString> const & reads,
         record1.flag |= 0x40; // first in pair
         record2.flag |= 0x80; // second in paired
 
-        if (!hasFlagRC(record1) && hasFlagRC(record2) && (record1.beginPos + record1.tLen) < record2.beginPos)
-        { // ---r1--->     <---r2---
+//        if (!hasFlagRC(record1) && hasFlagRC(record2) && (record1.beginPos + record1.tLen) < record2.beginPos)
+//        { // ---r1--->     <---r2---
             record1.tLen = record2.beginPos - record1.beginPos + length(record1.seq); // approximate fragment size
             record1.flag |= 0x2; // mapped in proper pair
             record2.flag |= 0x2;
-        }
-        else if (hasFlagRC(record1) && !hasFlagRC(record2) && (record2.beginPos + record2.tLen) < record1.beginPos)
-        { // ---r2--->     <---r1---
-            record1.tLen = record1.beginPos - record2.beginPos + length(record2.seq); // approximate fragment size
-            record1.flag |= 0x2; // mapped in proper pair
-            record2.flag |= 0x2;
-        }
+//        }
+//        else if (hasFlagRC(record1) && !hasFlagRC(record2) && (record2.beginPos + record2.tLen) < record1.beginPos)
+//        { // ---r2--->     <---r1---
+//            record1.tLen = record1.beginPos - record2.beginPos + length(record2.seq); // approximate fragment size
+//            record1.flag |= 0x2; // mapped in proper pair
+//            record2.flag |= 0x2;
+//        }
 
         #pragma omp critical
         write(pseudo_bamfile, record1, bamIOContext, Sam());
@@ -320,15 +321,10 @@ inline void fill_profiles(String<ProfileChar<Dna5, double> > & quali_profile,
 
     SEQAN_ASSERT_EQ(length(quali_profile), length(cover_profile));
 
-    // construct readId to alignId map ...
-    // which I can't find in the fragmentstore but need it for mate retrieval
-    String<TAlignedReadId> readId2alignId;
-    resize(readId2alignId, length(store.alignedReadStore));
-    for (TAlignedReadId i = 0; i < length(store.alignedReadStore); ++i)
-    {
-        TAlignedRead const & ar = store.alignedReadStore[i];
-        readId2alignId[ar.readId] = i;
-    }
+    String<TAlignedReadId> rId_to_mate_alignId;
+    resize(rId_to_mate_alignId, length(store.readStore));
+    // construct readId to alignId map
+    calculateMateIndices(rId_to_mate_alignId, store);
 
     for (unsigned i = 0; i < length(store.alignedReadStore); ++i)
     {
@@ -342,9 +338,11 @@ inline void fill_profiles(String<ProfileChar<Dna5, double> > & quali_profile,
         // check if read is aligned in proper pair
         if (ar.pairMatchId != TAlignedRead::INVALID_ID)
         {
-            TAlignedRead const & am = store.alignedReadStore[readId2alignId[ar.pairMatchId]]; // aligned mate
+            unsigned l = length(rId_to_mate_alignId);
+            int idafdhax = rId_to_mate_alignId[ar.readId];
+            TAlignedRead const & am = store.alignedReadStore[rId_to_mate_alignId[ar.readId]]; // aligned mate
 
-            SEQAN_ASSERT_EQ(store.readNameStore[ar.readId], store.readNameStore[am.readId]);
+            assert(store.readNameStore[ar.readId] == store.readNameStore[am.readId]);
 
             if ((ar.endPos < ar.beginPos /*(-)*/ && am.endPos > am.beginPos /*(+)*/ && am.endPos < ar.beginPos /*am maps before ar*/) ||
                 (ar.endPos > ar.beginPos /*(+)*/ && am.endPos < am.beginPos /*(-)*/ && ar.endPos < am.beginPos /*ar maps before am*/)) // TODO incoorparate correct insert size
@@ -371,7 +369,7 @@ inline void fill_profiles(String<ProfileChar<Dna5, double> > & quali_profile,
         for (unsigned row = 0; (row < length(readGaps) && (begin + row) < length(quali_profile)); ++row)
         {
             unsigned ord_idx{5};
-            double baseQ = aq.score; // initialize base quality with maping quality
+            double baseQ = config.baseQ_mean; // initialize base quality with avg
 
             if (!isGap(readGaps, row))
             {
