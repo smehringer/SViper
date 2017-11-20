@@ -19,181 +19,6 @@
 using namespace std;
 using namespace seqan;
 
-CharString get_quality_string(Dna5QString const & read)
-{
-    CharString qual;
-    resize(qual, length(read));
-    for (unsigned i = 0; i < length(read); ++i)
-    {
-        char c;
-        convertQuality(c, getQualityValue(read[i]));
-        qual[i] = c;
-    }
-    return qual;
-}
-
-BamAlignmentRecord map_single_read(Dna5QString read,       // copy for gaps object
-                                   CharString const & id,
-                                   Dna5String ref)        // copy for gaps object ?
-{
-    typedef String<CigarElement<char, unsigned>> TCigarString;
-    typedef Gaps<Dna5QString, ArrayGaps> TGapsRead;
-    typedef Gaps<Dna5String, ArrayGaps> TGapsRef;
-
-    int const MATCH = 3;
-    int const MISMATCH = -2;
-    int const GAP_OPEN = -3;
-    int const GAP_EXT = -1;
-
-    if (length(read) == 0)
-    {
-        // return unmapped read
-        BamAlignmentRecord record;
-        record.qName = id;
-        record.rID = BamAlignmentRecord::INVALID_REFID;
-        record.beginPos = BamAlignmentRecord::INVALID_POS;
-        record.tLen = BamAlignmentRecord::INVALID_LEN;
-        return record;
-    }
-
-    Dna5QString readRC = read; // copy for reverse complementing in place
-    Dna5String refRC  = ref;   // copy for assigning to gaps as ref
-
-    reverseComplement(readRC);
-
-    TGapsRef gapsRef(ref);
-    TGapsRef gapsRefRC(refRC);
-    TGapsRead gapsRead(read);
-    TGapsRead gapsReadRC(readRC);
-
-    int score = globalAlignment(gapsRef, gapsRead,
-                                Score<int, Simple>(MATCH, MISMATCH, GAP_EXT, GAP_OPEN),
-                                AlignConfig<true, false, false, true>(),
-                                AffineGaps());
-
-    int scoreRC = globalAlignment(gapsRefRC, gapsReadRC,
-                                  Score<int, Simple>(MATCH, MISMATCH, GAP_EXT, GAP_OPEN),
-                                  AlignConfig<true, false, false, true>(),
-                                  AffineGaps());
-
-    BamAlignmentRecord record;
-    record.rID = 0;
-    record.qName = id;
-
-    TCigarString cigar;
-
-    if (score > scoreRC) // forward strand
-    {
-        getCigarString(cigar, gapsRef, gapsRead);
-
-        double mapP = (((double)score / (double)(length(read)*MATCH)));
-        unsigned short mapQ = mapP * 100;
-
-        record.beginPos = countLeadingGaps(gapsRead);
-        record.flag = 0;
-        record.seq = read;
-        record.qual = get_quality_string(read);
-        record.mapQ = mapQ;
-    }
-    else // reverse strand
-    {
-        getCigarString(cigar, gapsRefRC, gapsReadRC);
-
-        double mapP = (((double)scoreRC / (double)(length(readRC)*MATCH)));
-        unsigned short mapQ = mapP * 100;
-
-        record.beginPos = countLeadingGaps(gapsReadRC);
-        record.flag = 16;
-        record.seq = readRC;
-        record.qual = get_quality_string(readRC);
-        record.mapQ = mapQ;
-    }
-
-    // fix cigar
-    if ((cigar[0]).operation == 'N' || (cigar[0]).operation == 'D')
-        erase(cigar, 0);
-    else if ((cigar[0]).operation == 'I')
-        (cigar[0]).operation = 'S';
-    if ((cigar[length(cigar) - 1]).operation == 'N' || (cigar[length(cigar) - 1]).operation == 'D')
-        erase(cigar, length(cigar) - 1);
-    else if ((cigar[0]).operation == 'I')
-        (cigar[0]).operation = 'S';
-
-    record.cigar = cigar;
-
-    return record;
-}
-
-inline void paired_mapping(StringSet<Dna5QString> const & reads,
-                           StringSet<String<char>> const & ids,
-                           StringSet<Dna5QString> const & reads2,
-                           StringSet<String<char>> const & ids2,
-                           Dna5String ref,
-                           CharString id) // ref name
-{
-    // prepare bam context
-    StringSet<CharString> contigNameStore;
-    appendValue(contigNameStore, id);
-    NameStoreCache<StringSet<CharString> > contigNameStoreCache(contigNameStore);
-    BamIOContext<StringSet<CharString> > bamIOContext(contigNameStore, contigNameStoreCache);
-    appendValue(contigLengths(bamIOContext), length(ref));
-
-    // BamFileOut bamFileOut(refer);
-    ofstream pseudo_bamfile("pseudo.sam");
-
-    #pragma omp parallel for
-    for (unsigned i = 0; i < length(reads); ++i)
-    {
-        if (ids[i] != ids2[i])
-            throw std::ios_base::failure("[ERROR] mapping - paired end data are not correct");
-
-        BamAlignmentRecord record1 = map_single_read(reads[i], ids[i], ref);
-
-        if (length(reads2[i]) == 0) // if mate is a dummy mate
-        {
-            #pragma omp critical
-            write(pseudo_bamfile, record1, bamIOContext, Sam());
-            continue;
-        }
-
-        BamAlignmentRecord record2 = map_single_read(reads2[i], ids2[i], ref);
-
-        record1.pNext = record2.beginPos;
-        record2.pNext = record1.beginPos;
-        record1.rNextId = record2.rID;
-        record2.rNextId = record1.rID;
-
-        // right now, the records only have a flag for reverse set
-        if (hasFlagRC(record2))
-            record1.flag |= 0x20; // mate is reversed
-        if (hasFlagRC(record1))
-            record2.flag |= 0x20;
-        record1.flag |= 0x1; // is paired
-        record2.flag |= 0x1;
-        record1.flag |= 0x40; // first in pair
-        record2.flag |= 0x80; // second in paired
-
-//        if (!hasFlagRC(record1) && hasFlagRC(record2) && (record1.beginPos + record1.tLen) < record2.beginPos)
-//        { // ---r1--->     <---r2---
-            record1.tLen = record2.beginPos - record1.beginPos + length(record1.seq); // approximate fragment size
-            record1.flag |= 0x2; // mapped in proper pair
-            record2.flag |= 0x2;
-//        }
-//        else if (hasFlagRC(record1) && !hasFlagRC(record2) && (record2.beginPos + record2.tLen) < record1.beginPos)
-//        { // ---r2--->     <---r1---
-//            record1.tLen = record1.beginPos - record2.beginPos + length(record2.seq); // approximate fragment size
-//            record1.flag |= 0x2; // mapped in proper pair
-//            record2.flag |= 0x2;
-//        }
-
-        #pragma omp critical
-        write(pseudo_bamfile, record1, bamIOContext, Sam());
-        #pragma omp critical
-        write(pseudo_bamfile, record2, bamIOContext, Sam());
-        //writeRecord(bamFileOut, record);
-    }
-}
-
 struct ConsensusConfig
 {
     bool verbose{false};
@@ -242,25 +67,286 @@ struct ConsensusConfig
     }
 };
 
-template <typename TStore>
-void compute_mappQ_stats(ConsensusConfig & config,
-                         TStore const & store)
+
+CharString get_quality_string(Dna5QString const & read)
 {
-    if (length(store.alignQualityStore) == 0)
+    CharString qual;
+    resize(qual, length(read));
+    for (unsigned i = 0; i < length(read); ++i)
+    {
+        char c;
+        convertQuality(c, getQualityValue(read[i]));
+        qual[i] = c;
+    }
+    return qual;
+}
+
+struct Mapping_object
+{
+    typedef Dna5QString TRead;
+    typedef Dna5String  TRef;
+    typedef Gaps<TRead, ArrayGaps> TGapsRead;
+    typedef Gaps<TRef,  ArrayGaps> TGapsRef;
+
+    TRead read;
+    TGapsRead gapsRead;
+    TGapsRef gapsRef;
+    bool read_is_rc{false};
+    double mapQRead{0.0};
+
+    TRead mate;
+    TGapsRead gapsMate;
+    TGapsRef gapsRefMate;
+    bool mate_is_rc{false};
+    double mapQMate{0.0};
+
+    bool proper_pair{false};
+
+    Mapping_object(TRead r, TRead m, TRef ref):
+        read{r}, mate{m}
+    {
+        assignSource(gapsRead, read);
+        assignSource(gapsMate, mate);
+        assignSource(gapsRef, ref);
+        assignSource(gapsRefMate, ref);
+    }
+
+    bool hasMate() const
+    {
+        return (length(gapsMate) != 0);
+    }
+
+    double mapQ() const
+    {
+        if (this->hasMate())
+            return (mapQRead + mapQMate)/2;
+        return mapQRead;
+    }
+};
+
+
+template <typename string_type>
+inline int gapsEndPos(Gaps<string_type, ArrayGaps> const & gaps)
+{
+    return length(gaps) - countTrailingGaps(gaps);
+}
+
+template <typename string_type>
+inline int beginPos(Gaps<string_type, ArrayGaps> const & gaps)
+{
+    return countLeadingGaps(gaps);
+}
+
+inline bool map_single_read(Gaps<Dna5QString, ArrayGaps> & gapsReadOut,
+                            Gaps<Dna5String, ArrayGaps> & gapsRefOut,
+                            Dna5QString & read,      // copy for gaps object
+                            Dna5String & ref)        // copy for gaps object ?
+{
+    typedef Gaps<Dna5QString, ArrayGaps> TGapsRead;
+    typedef Gaps<Dna5String, ArrayGaps> TGapsRef;
+
+    int const MATCH = 3;
+    int const MISMATCH = -2;
+    int const GAP_OPEN = -3;
+    int const GAP_EXT = -1;
+
+    if (length(read) == 0)
+        return false;
+
+    Dna5QString readRC = read; // copy for reverse complementing in place
+
+    reverseComplement(readRC);
+
+    TGapsRef gapsRef(ref);
+    TGapsRef gapsRefRC(ref);
+    TGapsRead gapsRead(read);
+    TGapsRead gapsReadRC(readRC);
+
+    int score = globalAlignment(gapsRef, gapsRead,
+                                Score<int, Simple>(MATCH, MISMATCH, GAP_EXT, GAP_OPEN),
+                                AlignConfig<true, false, false, true>(),
+                                AffineGaps());
+
+    int scoreRC = globalAlignment(gapsRefRC, gapsReadRC,
+                                  Score<int, Simple>(MATCH, MISMATCH, GAP_EXT, GAP_OPEN),
+                                  AlignConfig<true, false, false, true>(),
+                                  AffineGaps());
+
+    if (score > scoreRC) // forward strand
+    {
+        copyGaps(gapsReadOut, gapsRead);
+        copyGaps(gapsRefOut, gapsRef);
+        return false;
+    }
+    else // reverse strand
+    {
+        read = readRC;
+        assignSource(gapsReadOut, read); // reassign gaps source to rc read
+        copyGaps(gapsReadOut, gapsReadRC);
+        copyGaps(gapsRefOut, gapsRefRC);
+        return true;
+    }
+}
+
+vector<Mapping_object> mapping(StringSet<Dna5QString> const & reads1,
+                               StringSet<Dna5QString> const & reads2,
+                               Dna5String & ref)
+{
+    SEQAN_ASSERT_EQ(length(reads1), length(reads2));
+
+    vector<Mapping_object> mobs;
+    //mobs.resize(length(reads1));
+
+    #pragma omp parallel for
+    for (unsigned ridx = 0; ridx < length(reads1); ++ridx) // for every read (pair)
+    {
+        Mapping_object mob(reads1[ridx], reads2[ridx], ref);
+
+        mob.read_is_rc = map_single_read(mob.gapsRead, mob.gapsRef, mob.read, ref);
+        mob.mate_is_rc = map_single_read(mob.gapsMate, mob.gapsRefMate, mob.mate, ref);
+        mob.mapQRead = 60;
+
+        if (mob.hasMate())
+        {
+            mob.mapQMate = 60;
+            // check if proper pair
+            if ((!mob.read_is_rc && mob.mate_is_rc && gapsEndPos(mob.gapsRead) < beginPos(mob.gapsMate)) ||
+                (mob.read_is_rc && !mob.mate_is_rc && gapsEndPos(mob.gapsMate) < beginPos(mob.gapsRead)) )
+                mob.proper_pair = true;
+        }
+
+        #pragma omp critical
+        mobs.push_back(mob);
+    }
+
+    return mobs;
+}
+
+inline void add_base_to_profile(String<ProfileChar<Dna5, double> > & profile,
+                                unsigned pos,
+                                Dna5Q base,
+                                double mapQ,
+                                bool paired,
+                                ConsensusConfig const & config)
+{
+    if (length(profile) <= pos)
+        resize(profile, pos + 1);
+
+    profile[pos].count[ordValue(base)] += config.add_to_profile(getQualityValue(base), mapQ, paired);
+}
+
+inline void add_gap_to_profile(String<ProfileChar<Dna5, double> > & profile,
+                               unsigned pos,
+                               double mapQ,
+                               bool paired,
+                               ConsensusConfig const & config)
+{
+    if (length(profile) <= pos)
+        resize(profile, pos + 1);
+
+    profile[pos].count[5] += config.add_to_profile(config.baseQ_mean, mapQ, paired);
+}
+
+inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
+                                vector<String<ProfileChar<Dna5, double> >> & ins_profiles,
+                                Gaps<Dna5QString, ArrayGaps> const & gapsRead,
+                                Gaps<Dna5String, ArrayGaps> const & gapsRef,
+                                bool paired,
+                                double mapQ,
+                                ConsensusConfig const & config)
+{
+    SEQAN_ASSERT_EQ(length(gapsRead), length(gapsRef));
+
+    unsigned begin = max(beginPos(gapsRef), beginPos(gapsRead));
+    unsigned end = min(gapsEndPos(gapsRef), gapsEndPos(gapsRead));
+    // append read bases to profile for every position in ref
+    for (unsigned idx = begin; idx < end; ++idx)
+    {
+        unsigned pos_in_ref = toSourcePosition(gapsRef, idx);
+
+        if (isGap(gapsRef, idx)) // this means the read features an insertion
+        {
+            SEQAN_ASSERT(!isGap(gapsRef, idx - 1)); // always handle full insertion
+
+            unsigned ins_pos{0};
+
+            while(isGap(gapsRef, idx))
+            {
+                SEQAN_ASSERT(!isGap(gapsRead, idx)); // always handle full insertion
+                Dna5Q base = (source(gapsRead))[toSourcePosition(gapsRead, idx)];
+                add_base_to_profile(ins_profiles[pos_in_ref], ins_pos, base, mapQ, paired, config);
+                ++idx; ++ins_pos;
+            }
+        }
+
+        if (!isGap(gapsRead, idx))
+        {
+            Dna5Q base = (source(gapsRead))[toSourcePosition(gapsRead, idx)];
+            add_base_to_profile(profile, pos_in_ref, base, mapQ, paired, config);
+        }
+        else
+        {
+            add_gap_to_profile(profile, pos_in_ref, mapQ, paired, config);
+        }
+    }
+}
+
+
+void fill_profile(String<ProfileChar<Dna5, double> > & profile,
+                  Gaps<Dna5String, ArrayGaps> & gapsRef,
+                  vector<Mapping_object> const & mobs,
+                  ConsensusConfig const & config)
+{
+    // the reference sequence (consensus sequence) will have a profile over
+    // every position. This will account for deletions and substitutions.
+    // Insertions are first stored seperately because otherwise the positions
+    // in read-ref-alignments are not "synchronized" and hard to handle.
+    vector<String<ProfileChar<Dna5, double> >> insertion_profiles;
+    insertion_profiles.resize(length(profile)); // there can be an insertion after every position
+
+    for (auto const & mob : mobs) // for every read (pair)
+    {
+        add_read_to_profile(profile, insertion_profiles, mob.gapsRead, mob.gapsRef, mob.proper_pair, mob.mapQRead, config);
+
+        if (mob.hasMate()) // there is a mate
+            add_read_to_profile(profile, insertion_profiles, mob.gapsMate, mob.gapsRefMate, mob.proper_pair, mob.mapQMate, config);
+    }
+
+    // add insertions to profile
+    unsigned pos{0}; // tracks the view position in gaps space of the reference
+    for (auto const & ins : insertion_profiles)
+    {
+        if (length(ins) != 0) // if there is an insertion
+        {
+            insert(profile, pos, ins);
+            insertGaps(gapsRef, pos, length(ins));
+            pos += length(ins) + 1; // +1 because we are also advancing one position anyway
+        }
+        else
+        {
+            ++pos;
+        }
+    }
+}
+
+void compute_mappQ_stats(ConsensusConfig & config,
+                         vector<Mapping_object> const & mobs)
+{
+    if (length(mobs) == 0)
         return;
 
     double avg{0.0};
     double std{0.0};
 
     // compute average
-    for (auto const & qual : store.alignQualityStore)
-        avg += qual.score;
-    avg = avg / length(store.alignQualityStore);
+    for (auto const & m : mobs)
+        avg += m.mapQ();
+    avg = avg / length(mobs);
 
     // compute standard deviation
-    for (auto const & qual : store.alignQualityStore)
-        std += std::pow((qual.score - avg), 2);
-    std = std::sqrt(std / length(store.alignQualityStore));
+    for (auto const & m : mobs)
+        std += std::pow((m.mapQ() - avg), 2);
+    std = std::sqrt(std / length(mobs));
 
     config.mappQ_mean = avg;
     config.mappQ_std = std;
@@ -305,89 +391,8 @@ void compute_baseQ_stats(ConsensusConfig & config,
     config.baseQ_std = std;
 }
 
-template <typename TStore>
-inline void fill_profiles(String<ProfileChar<Dna5, double> > & quali_profile,
-                          String<ProfileChar<Dna5, double> > & cover_profile,
-                          TStore const & store,
-                          ConsensusConfig const & config)
-{
-    typedef typename Value<typename TStore::TAlignedReadStore>::Type   TAlignedRead;
-    typedef typename Value<typename TStore::TAlignQualityStore>::Type  TAlignQuality;
-    typedef Gaps<typename TStore::TReadSeq, AnchorGaps<typename TAlignedRead::TGapAnchors> >  TReadGaps;
-    typedef typename TAlignedRead::TId TAlignedReadId;
-
-    typename TStore::TReadSeq readSeq;
-    typename TAlignedRead::TPos begin;
-
-    SEQAN_ASSERT_EQ(length(quali_profile), length(cover_profile));
-
-    String<TAlignedReadId> rId_to_mate_alignId;
-    resize(rId_to_mate_alignId, length(store.readStore));
-    // construct readId to alignId map
-    calculateMateIndices(rId_to_mate_alignId, store);
-
-    for (unsigned i = 0; i < length(store.alignedReadStore); ++i)
-    {
-        TAlignedRead  const & ar = store.alignedReadStore[i];              // aligned read
-        TAlignQuality const & aq = store.alignQualityStore[i];             // aligned quality
-
-        if (ar.contigId != 0) // not aligned to first contig, which is the consensus sequence
-            continue;
-
-        bool is_proper_pair{false};
-        // check if read is aligned in proper pair
-        if (ar.pairMatchId != TAlignedRead::INVALID_ID)
-        {
-            unsigned l = length(rId_to_mate_alignId);
-            int idafdhax = rId_to_mate_alignId[ar.readId];
-            TAlignedRead const & am = store.alignedReadStore[rId_to_mate_alignId[ar.readId]]; // aligned mate
-
-            assert(store.readNameStore[ar.readId] == store.readNameStore[am.readId]);
-
-            if ((ar.endPos < ar.beginPos /*(-)*/ && am.endPos > am.beginPos /*(+)*/ && am.endPos < ar.beginPos /*am maps before ar*/) ||
-                (ar.endPos > ar.beginPos /*(+)*/ && am.endPos < am.beginPos /*(-)*/ && ar.endPos < am.beginPos /*ar maps before am*/)) // TODO incoorparate correct insert size
-                is_proper_pair = true;
-        }
-
-        if (config.only_proper_pairs && !is_proper_pair)
-            continue;
-
-        readSeq = store.readSeqStore[ar.readId];
-        if (ar.endPos < ar.beginPos)
-        {
-            reverseComplement(readSeq);
-            begin = ar.endPos;
-        }
-        else
-        {
-            begin = ar.beginPos;
-        }
-
-        TReadGaps readGaps(readSeq, ar.gaps);
-
-        // go through the read and fill quali_profile of contig
-        for (unsigned row = 0; (row < length(readGaps) && (begin + row) < length(quali_profile)); ++row)
-        {
-            unsigned ord_idx{5};
-            double baseQ = config.baseQ_mean; // initialize base quality with avg
-
-            if (!isGap(readGaps, row))
-            {
-                unsigned sourcePos = toSourcePosition(readGaps, row);
-                auto w = readSeq[sourcePos];
-                ord_idx = ordValue(w);
-                baseQ = getQualityValue(readSeq[sourcePos]);
-            }
-
-            quali_profile[begin + row].count[ord_idx] += config.add_to_profile(baseQ, aq.score, is_proper_pair);
-            cover_profile[begin + row].count[ord_idx] += 1;
-        }
-    }
-}
-
-template <typename TContigGaps>
 inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > const & profile,
-                                         TContigGaps const & contigGaps,
+                                         Gaps<Dna5String, ArrayGaps> const & contigGaps,
                                          ConsensusConfig & config) // ebuffer at beginning and end
 {
     SEQAN_ASSERT(length(profile) == length(contigGaps));
@@ -530,41 +535,30 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
                   CharString id,
                   ConsensusConfig & config)
 {
-    typedef FragmentStore<>                       TFragmentStore;
-    typedef typename TFragmentStore::TContigStore TContigStore;
-    typedef typename Value<TContigStore>::Type    TContig;
-    typedef Gaps<typename TContig::TContigSeq, AnchorGaps<typename TContig::TGapAnchors>> TContigGaps;
-
-    paired_mapping(reads1, ids1, reads2, ids2, ref, id); // creates pseudo.sam for FragmentStore
-
-    TFragmentStore store;
-    // loadContigs(store, "consensus.fa");
-    appendValue(store.contigNameStore, id);
-    resize(store.contigStore, 1);
-    TContig & contig = back(store.contigStore);
-    contig.usage = 0;
-    contig.fileId = 0;
-    contig.fileBeginPos = 0;
-    contig.seq = ref;
-    SEQAN_ASSERT(store.contigStore[0].seq == ref);
-    BamFileIn bamfile("pseudo.sam");
-    readRecords(store, bamfile);
-
-    TContigGaps contigGaps(store.contigStore[0].seq, store.contigStore[0].gaps);
-    String<ProfileChar<Dna5, double> > quali_profile;
-    String<ProfileChar<Dna5, double> > cover_profile;
-    resize(quali_profile, length(contigGaps));
-    resize(cover_profile, length(contigGaps));
-    compute_mappQ_stats(config, store);
+    //typedef FragmentStore<>                       TFragmentStore;
+    //typedef typename TFragmentStore::TContigStore TContigStore;
+    //typedef typename Value<TContigStore>::Type    TContig;
+    //typedef Gaps<typename TContig::TContigSeq, AnchorGaps<typename TContig::TGapAnchors>> TContigGaps;
+        cout << "polsihing step 1" << endl;
+    Gaps<Dna5String, ArrayGaps> contigGaps(ref);
+        cout << "polsihing step 2" << endl;
+    vector<Mapping_object> mobs = mapping(reads1, reads2, ref);
+        cout << "polsihing step 3" << endl;
+    compute_mappQ_stats(config, mobs);
     config.alpha = config.mappQ_mean/config.baseQ_mean;
-    fill_profiles(quali_profile, cover_profile, store, config);
+        cout << "polsihing step 4" << endl;
+    String<ProfileChar<Dna5, double> > profile;
+    resize(profile, length(ref));
+        cout << "polsihing step 5" << endl;
+    fill_profile(profile, contigGaps, mobs, config);
 
-    double mean_coverage{0};
-    for (auto const & p : cover_profile)
-    {
-        mean_coverage += totalCount(p);
-    }
-    config.mean_coverage = mean_coverage/length(cover_profile);
+        cout << "polsihing step 6" << endl;
+    // double mean_coverage{0};
+    // for (auto const & p : cover_profile)
+    // {
+    //     mean_coverage += totalCount(p);
+    // }
+    // config.mean_coverage = mean_coverage/length(cover_profile);
 
     // if (config.verbose)
     //     cout << "### MappQ avg: " << config.mappQ_mean << " and std: " << config.mappQ_std
@@ -573,10 +567,11 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
     // Do not correct bases to the left and right of the consensus sequences otherwise
     // we extend the alignment with low coverage.
     // Also skip 50 bp of the beginning because reads will map poorly there
-    ref = consensus_from_profile(quali_profile,
+    ref = consensus_from_profile(profile,
                                  contigGaps,
                                  config);
 
+        cout << "polsihing step 7" << endl;
     // UNCOMMENT THIS FOR PRETTY DEBUGGING OUTPUT:
     // print_profile(quali_profile, store);
     // cout << "### Layout alignment for debug and print profile..." << endl;
@@ -601,6 +596,7 @@ Dna5String polish_to_perfection(StringSet<Dna5QString> const & reads1,
 
     while (ref != old_ref && round < 20)
     {
+        cout << round << endl;
         old_ref = ref; // store prior result
         ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
         ++round;
