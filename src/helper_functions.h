@@ -537,9 +537,9 @@ bool refine_variant(BamAlignmentRecord const & record, Variant & variant)
         if (variant.sv_type == SV_TYPE::DEL)
         {
             if (std::regex_search(variant.info, end_re))
-                variant.info = std::regex_replace(variant.info, end_re, std::string("END=" + std::to_string(record.beginPos + variant.sv_length) + ";"));
+                variant.info = std::regex_replace(variant.info, end_re, std::string("END=" + std::to_string(var.ref_pos + variant.sv_length) + ";"));
             else
-                variant.info.append(std::string(";END=" + std::to_string(record.beginPos + variant.sv_length)));
+                variant.info.append(std::string(";END=" + std::to_string(var.ref_pos + variant.sv_length)));
         }
 
         if (variant.sv_type == SV_TYPE::INS)
