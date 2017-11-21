@@ -34,7 +34,7 @@ ArgumentParser::ParseResult
 parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 {
     // Setup ArgumentParser.
-    seqan::ArgumentParser parser("Build Consensus");
+    seqan::ArgumentParser parser("SViper");
     setVersion(parser, "2.0.0");
 
     addOption(parser, seqan::ArgParseOption(
