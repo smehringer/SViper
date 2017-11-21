@@ -41,6 +41,7 @@ struct ConsensusConfig
     unsigned substituted_bases{0};
     unsigned inserted_bases{0};
     unsigned deleted_bases{0};
+    unsigned rounds{0};
 
     /* [used in fill_profiles
      * Returns the value to be added to the profile. A profile consists of counts
@@ -66,20 +67,6 @@ struct ConsensusConfig
         return score >= (max(min_coverage, mean_coverage/2) * (baseQ_mean + mappQ_mean/alpha) / 4);
     }
 };
-
-
-CharString get_quality_string(Dna5QString const & read)
-{
-    CharString qual;
-    resize(qual, length(read));
-    for (unsigned i = 0; i < length(read); ++i)
-    {
-        char c;
-        convertQuality(c, getQualityValue(read[i]));
-        qual[i] = c;
-    }
-    return qual;
-}
 
 struct Mapping_object
 {
@@ -132,15 +119,15 @@ inline int gapsEndPos(Gaps<string_type, ArrayGaps> const & gaps)
 }
 
 template <typename string_type>
-inline int beginPos(Gaps<string_type, ArrayGaps> const & gaps)
+inline int gapsBeginPos(Gaps<string_type, ArrayGaps> const & gaps)
 {
     return countLeadingGaps(gaps);
 }
 
 inline bool map_single_read(Gaps<Dna5QString, ArrayGaps> & gapsReadOut,
                             Gaps<Dna5String, ArrayGaps> & gapsRefOut,
-                            Dna5QString & read,      // copy for gaps object
-                            Dna5String & ref)        // copy for gaps object ?
+                            Dna5QString & read,
+                            Dna5String & ref)
 {
     typedef Gaps<Dna5QString, ArrayGaps> TGapsRead;
     typedef Gaps<Dna5String, ArrayGaps> TGapsRef;
@@ -188,6 +175,16 @@ inline bool map_single_read(Gaps<Dna5QString, ArrayGaps> & gapsReadOut,
     }
 }
 
+double compute_mappQ(Gaps<Dna5QString, ArrayGaps> & gapsRead,
+                     Gaps<Dna5String, ArrayGaps> & gapsRef)
+{
+    double edit_distance = countGaps(gapsRead, countLeadingGaps(gapsRead))
+                           - countTrailingGaps(gapsRead) +
+                           countGaps(gapsRef, countLeadingGaps(gapsRef))
+                           - countTrailingGaps(gapsRef);
+    return (-10 * std::log10((edit_distance + 1)/(2*length(source(gapsRead))))); // +1 pseusocount
+}
+
 vector<Mapping_object> mapping(StringSet<Dna5QString> const & reads1,
                                StringSet<Dna5QString> const & reads2,
                                Dna5String & ref)
@@ -204,14 +201,14 @@ vector<Mapping_object> mapping(StringSet<Dna5QString> const & reads1,
 
         mob.read_is_rc = map_single_read(mob.gapsRead, mob.gapsRef, mob.read, ref);
         mob.mate_is_rc = map_single_read(mob.gapsMate, mob.gapsRefMate, mob.mate, ref);
-        mob.mapQRead = 60;
+        mob.mapQRead = compute_mappQ(mob.gapsRead, mob.gapsRef);
 
         if (mob.hasMate())
         {
-            mob.mapQMate = 60;
+            mob.mapQMate = compute_mappQ(mob.gapsMate, mob.gapsRefMate);
             // check if proper pair
-            if ((!mob.read_is_rc && mob.mate_is_rc && gapsEndPos(mob.gapsRead) < beginPos(mob.gapsMate)) ||
-                (mob.read_is_rc && !mob.mate_is_rc && gapsEndPos(mob.gapsMate) < beginPos(mob.gapsRead)) )
+            if ((!mob.read_is_rc && mob.mate_is_rc && gapsEndPos(mob.gapsRead) < gapsBeginPos(mob.gapsMate)) ||
+                (mob.read_is_rc && !mob.mate_is_rc && gapsEndPos(mob.gapsMate) < gapsBeginPos(mob.gapsRead)) )
                 mob.proper_pair = true;
         }
 
@@ -257,7 +254,7 @@ inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
 {
     SEQAN_ASSERT_EQ(length(gapsRead), length(gapsRef));
 
-    unsigned begin = max(beginPos(gapsRef), beginPos(gapsRead));
+    unsigned begin = max(gapsBeginPos(gapsRef), gapsBeginPos(gapsRead));
     unsigned end = min(gapsEndPos(gapsRef), gapsEndPos(gapsRead));
     // append read bases to profile for every position in ref
     for (unsigned idx = begin; idx < end; ++idx)
@@ -277,6 +274,11 @@ inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
                 add_base_to_profile(ins_profiles[pos_in_ref], ins_pos, base, mapQ, paired, config);
                 ++idx; ++ins_pos;
             }
+        }
+        else
+        {
+            if (!isGap(gapsRef, idx + 1)) // no insertion happened between idx and idx + 1
+                add_gap_to_profile(ins_profiles[pos_in_ref], 0, mapQ, paired, config);
         }
 
         if (!isGap(gapsRead, idx))
@@ -308,19 +310,21 @@ void fill_profile(String<ProfileChar<Dna5, double> > & profile,
     {
         add_read_to_profile(profile, insertion_profiles, mob.gapsRead, mob.gapsRef, mob.proper_pair, mob.mapQRead, config);
 
-        if (mob.hasMate()) // there is a mate
+        if (mob.hasMate())
             add_read_to_profile(profile, insertion_profiles, mob.gapsMate, mob.gapsRefMate, mob.proper_pair, mob.mapQMate, config);
     }
 
     // add insertions to profile
     unsigned pos{0}; // tracks the view position in gaps space of the reference
-    for (auto const & ins : insertion_profiles)
+    for (auto & pro : insertion_profiles)
     {
-        if (length(ins) != 0) // if there is an insertion
+        if (length(pro) != 0) // if there is an insertion
         {
-            insert(profile, pos, ins);
-            insertGaps(gapsRef, pos, length(ins));
-            pos += length(ins) + 1; // +1 because we are also advancing one position anyway
+            for (auto & ins : pro) // update gap qualitities stored at the first position
+                ins.count[5] = pro[0].count[5];
+            insert(profile, pos, pro);
+            insertGaps(gapsRef, pos, length(pro));
+            pos += length(pro) + 1; // +1 because we are also advancing one position anyway
         }
         else
         {
@@ -431,7 +435,8 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
         }
         else if (!config.fix_indels) // if idx < 5 but indels should not be fixed
         {
-            appendValue(cns, source(contigGaps)[toSourcePosition(contigGaps, i)]);
+            if (!isGap(contigGaps, i)) // gap to gap alignment can happen because of insertion profiles.
+                appendValue(cns, source(contigGaps)[toSourcePosition(contigGaps, i)]);
         }
         else // idx < 5 and fix_indels is true
         {
@@ -449,116 +454,22 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
     return cns;
 }
 
-template <typename TStore>
-inline void print_profile(String<ProfileChar<Dna5, double> > const & profile, TStore const & store)
-{
-    typedef typename Value<typename TStore::TContigStore>::Type TContig;
-    typedef Gaps<typename TContig::TContigSeq, AnchorGaps<typename TContig::TGapAnchors>> TContigGaps;
-
-    TContigGaps contigGaps(store.contigStore[0].seq, store.contigStore[0].gaps);
-    SEQAN_ASSERT(length(contigGaps) == length(profile));
-
-    unsigned confirmed{0};
-    unsigned substitutions{0};
-    unsigned insertions{0};
-    unsigned deletions{0};
-
-    for (unsigned j = 0; j < length(profile[0].count); j++)
-    {
-        for (unsigned i = 0; i < length(profile); ++i)
-        {
-            cout << profile[i].count[j] << " ";
-        }
-        cout << endl;
-    }
-
-    stringstream prof;
-    stringstream change;
-    for (unsigned i = 0; i < length(profile); ++i)
-    {
-        if (isGap(contigGaps, i))
-        {
-            if (getMaxIndex(profile[i]) < 5) // not gap
-            {
-                prof << Dna5(getMaxIndex(profile[i]));
-                change << "X";
-                ++insertions;
-            }
-            else
-            {
-                prof << "-";
-                change << "|";
-            }
-        }
-        else
-        {
-            if (getMaxIndex(profile[i]) < 5) // not gap
-            {
-                prof << Dna5(getMaxIndex(profile[i]));
-
-                if (Dna5(getMaxIndex(profile[i])) == (source(contigGaps))[toSourcePosition(contigGaps, i)])
-                {
-                    ++confirmed;
-                    change << "|";
-                }
-                else
-                {
-                    ++substitutions;
-                    change << "X";
-                }
-            }
-            else
-            {
-                prof << "-";
-                change << "X";
-                ++deletions;
-            }
-        }
-    }
-    cout << endl;
-    cout << prof.str() << endl;
-    cout << change.str() << endl;
-    cout << contigGaps << endl;
-    cout << "confirmed: " << confirmed << endl;
-    cout << "substitutions: " << substitutions << endl;
-    cout << "insertions: " << insertions << endl;
-    cout << "deletions: " << deletions << endl;
-
-    cout << endl;
-}
-
 Dna5String polish(StringSet<Dna5QString> const & reads1,
-                  StringSet<String<char>> const & ids1,
                   StringSet<Dna5QString> const & reads2,
-                  StringSet<String<char>> const & ids2,
-                  Dna5String ref,
-                  CharString id,
+                  Dna5String ref, // TODO:: reference?
                   ConsensusConfig & config)
 {
-    //typedef FragmentStore<>                       TFragmentStore;
-    //typedef typename TFragmentStore::TContigStore TContigStore;
-    //typedef typename Value<TContigStore>::Type    TContig;
-    //typedef Gaps<typename TContig::TContigSeq, AnchorGaps<typename TContig::TGapAnchors>> TContigGaps;
-        cout << "polsihing step 1" << endl;
     Gaps<Dna5String, ArrayGaps> contigGaps(ref);
-        cout << "polsihing step 2" << endl;
+
     vector<Mapping_object> mobs = mapping(reads1, reads2, ref);
-        cout << "polsihing step 3" << endl;
+
     compute_mappQ_stats(config, mobs);
     config.alpha = config.mappQ_mean/config.baseQ_mean;
-        cout << "polsihing step 4" << endl;
+
     String<ProfileChar<Dna5, double> > profile;
     resize(profile, length(ref));
-        cout << "polsihing step 5" << endl;
-    fill_profile(profile, contigGaps, mobs, config);
 
-        cout << "polsihing step 6" << endl;
-    // double mean_coverage{0};
-    // for (auto const & p : cover_profile)
-    // {
-    //     mean_coverage += totalCount(p);
-    // }
-    // config.mean_coverage = mean_coverage/length(cover_profile);
+    fill_profile(profile, contigGaps, mobs, config);
 
     // if (config.verbose)
     //     cout << "### MappQ avg: " << config.mappQ_mean << " and std: " << config.mappQ_std
@@ -571,35 +482,21 @@ Dna5String polish(StringSet<Dna5QString> const & reads1,
                                  contigGaps,
                                  config);
 
-        cout << "polsihing step 7" << endl;
-    // UNCOMMENT THIS FOR PRETTY DEBUGGING OUTPUT:
-    // print_profile(quali_profile, store);
-    // cout << "### Layout alignment for debug and print profile..." << endl;
-    // AlignedReadLayout layout2;
-    // layoutAlignment(layout2, store);
-    // printAlignment(std::cout, layout2, store, 0, 0, 1550, 0, 46);
-
     return ref;
 }
 
 Dna5String polish_to_perfection(StringSet<Dna5QString> const & reads1,
-                                StringSet<String<char>> const & ids1,
                                 StringSet<Dna5QString> const & reads2,
-                                StringSet<String<char>> const & ids2,
                                 Dna5String ref,
-                                CharString id,
                                 ConsensusConfig & config)
 {
     Dna5String old_ref;
 
-    unsigned round{1};
-
-    while (ref != old_ref && round < 20)
+    while (ref != old_ref && config.rounds < 20)
     {
-        cout << round << endl;
         old_ref = ref; // store prior result
-        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-        ++round;
+        ref = polish(reads1, reads2, ref, config);
+        ++config.rounds;
         // break;
     }
 
@@ -607,18 +504,18 @@ Dna5String polish_to_perfection(StringSet<Dna5QString> const & reads1,
     config.fix_indels = true;
     for (unsigned i= 0; i < 10; ++i)
     {
-        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-        ++round;
+        ref = polish(reads1, reads2, ref, config);
+        ++config.rounds;
         // break;
     }
 
     config.only_proper_pairs = false;
     old_ref = ""; // reset
-    while (ref != old_ref && round < 50)
+    while (ref != old_ref && config.rounds < 30)
     {
         old_ref = ref; // store prior result
-        ref = polish(reads1, ids1, reads2, ids2, ref, id, config);
-        ++round;
+        ref = polish(reads1, reads2, ref, config);
+        ++config.rounds;
         // break;
     }
 

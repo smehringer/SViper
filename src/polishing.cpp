@@ -316,14 +316,15 @@ int main(int argc, char const ** argv)
         config.verbose = options.verbose;
         compute_baseQ_stats(config, short_reads_1, short_reads_2);
 
-        Dna5String polished_ref = polish_to_perfection(short_reads_1, short_ids_1,
-                                                       short_reads_2, short_ids_2,
-                                                       ref, id, config);
+        Dna5String polished_ref = polish_to_perfection(short_reads_1,
+                                                       short_reads_2,
+                                                       ref, config);
 
         log_file << "DONE POLISHING: Total of "
                  << config.substituted_bases << " substituted, "
                  << config.deleted_bases     << " deleted and "
-                 << config.inserted_bases    << " inserted bases."
+                 << config.inserted_bases    << " inserted bases. "
+                 << config.rounds            << " rounds."
                  << std::endl << std::endl;
 
         // Flank polished sequence
