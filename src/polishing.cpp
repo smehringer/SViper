@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <chrono>
 
 #include <seqan/arg_parse.h>
 #include <seqan/bam_io.h>
@@ -130,31 +131,32 @@ int main(int argc, char const ** argv)
 
     // Check files
     // -------------------------------------------------------------------------
-    ifstream input_vcf;              // The candidate variants to polish
-    ofstream output_vcf;             // The polished variant as output
-    FaiIndex faiIndex;               // The reference sequence fasta index
-    BamHeader long_read_header;      // The bam header object needed to fill bam context
-    BamHeader short_read_header;     // The bam header object needed to fill bam context
-    BamFileIn long_read_bam;         // The long read bam file
-    BamFileIn short_read_bam;        // THe short read bam file
-    BamIndex<Bai> long_read_bai;     // The bam index to the long read bam file
-    BamIndex<Bai> short_read_bai;    // The bam index to the short read bam file
-    SeqFileOut final_fa("final.fa"); // The current output fasta file to be mapped
-    ofstream log_file;               // The file to log all information
+    ifstream input_vcf;           // The candidate variants to polish
+    ofstream output_vcf;          // The polished variant as output
+    FaiIndex faiIndex;            // The reference sequence fasta index
+    BamHeader long_read_header;   // The bam header object needed to fill bam context
+    BamHeader short_read_header;  // The bam header object needed to fill bam context
+    BamFileIn long_read_bam;      // The long read bam file
+    BamFileIn short_read_bam;     // THe short read bam file
+    BamIndex<Bai> long_read_bai;  // The bam index to the long read bam file
+    BamIndex<Bai> short_read_bai; // The bam index to the short read bam file
+    SeqFileOut final_fa;          // The current output fasta file to be mapped
+    ofstream log_file;            // The file to log all information
 
     if (!open_file_success(input_vcf, options.candidate_file_name.c_str()) ||
-        !open_file_success(output_vcf, options.out_vcf_file_name.c_str()) ||
+        /*!open_file_success(output_vcf, options.out_vcf_file_name.c_str()) || */ // no direct vcf output available yet
         !open_file_success(long_read_bam, options.long_read_file_name.c_str()) ||
         !open_file_success(short_read_bam, options.short_read_file_name.c_str()) ||
         !open_file_success(long_read_bai, (options.long_read_file_name + ".bai").c_str()) ||
         !open_file_success(short_read_bai, (options.short_read_file_name + ".bai").c_str()) ||
         !open_file_success(faiIndex, options.reference_file_name.c_str()) ||
+        !open_file_success(final_fa, (options.out_vcf_file_name + ".fa").c_str()) ||
         !open_file_success(log_file, options.log_file_name.c_str()))
         return 1;
 
-    std::cout << "----------------------------------------------------------------------" << std::endl
+    std::cout << "======================================================================" << std::endl
               << "START polishing variants in of file" << options.candidate_file_name << std::endl
-              << "----------------------------------------------------------------------" << std::endl;
+              << "======================================================================" << std::endl;
 
     // Read bam file header
     // -------------------------------------------------------------------------
@@ -170,22 +172,22 @@ int main(int argc, char const ** argv)
 
     do // per Variant
     {
-
+        auto start = std::chrono::high_resolution_clock::now();
         Variant var{line};
 
         if (var.alt_seq != "<DEL>" && var.alt_seq != "<INS>")
         {
             std::cout << "[ SKIP ] Variant " << var.ref_chrom << ":"
-                      << var.ref_pos << " of tpye " << var.alt_seq
+                      << var.ref_pos << " of type " << var.alt_seq
                       << " is currently not supported." << std::endl;
             log_file << "----------------------------------------------------------------------" << std::endl
-                     << " SKIP Variant " << var.ref_chrom << ":" << var.ref_pos << " of tpye " << var.alt_seq << std::endl
+                     << " SKIP Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
                      << "----------------------------------------------------------------------" << std::endl;
             continue;
         }
 
         log_file << "----------------------------------------------------------------------" << std::endl
-                 << " PROCESS Variant " << var.ref_chrom << ":" << var.ref_pos << " of tpye " << var.alt_seq << std::endl
+                 << " PROCESS Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
                  << "----------------------------------------------------------------------" << std::endl;
 
         // Compute reference length, start and end position of the variant
@@ -221,6 +223,7 @@ int main(int argc, char const ** argv)
 
         // Merge supplementary alignments to primary
         // ---------------------------------------------------------------------
+        sort(ont_reads.begin(), ont_reads.end(), bamRecordNameLess());
         ont_reads = merge_alignments(ont_reads);
 
         log_file << "--- After merging " << ont_reads.size() << " read(s) remain(s)." << std::endl;
@@ -243,9 +246,9 @@ int main(int argc, char const ** argv)
 
         if (supporting_records.size() == 0)
         {
-            std::cout << "[ ERROR2 ] No supporting reads in reference region "
-                      << var.ref_chrom << ":" << ref_region_start << "-"
-                      << ref_region_end << std::endl;
+            std::cout << "[ ERROR2 ] No supporting reads for " << var.alt_seq
+                      << " in region " << var.ref_chrom << ":" << ref_region_start
+                      << "-" << ref_region_end << std::endl;
             continue;
         }
 
@@ -284,18 +287,36 @@ int main(int argc, char const ** argv)
         // ---------------------------------------------------------------------
         StringSet<Dna5QString> short_reads_1; // first in pair
         StringSet<Dna5QString> short_reads_2; // second in pair
-        StringSet<CharString> short_ids_1; // first in pair
-        StringSet<CharString> short_ids_2; // first in pair
 
         vector<BamAlignmentRecord> short_reads;
-        // extract reads left of the start of the variant [start-buffer, start]
-        view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, var.ref_pos, false);
-        // and right of the end of the variant [end, end+buffer]
-        view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, var.ref_pos_end, ref_region_end, false);
+        if (ref_region_end - ref_region_start > options.flanking_region * 2 + 150) // 150 = illumina length
+        {
+            // extract reads left of the start of the variant [start-buffer, start+buffer]
+            unsigned e = min(ref_length, var.ref_pos + options.flanking_region);
+            view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, e, false);
+            // and right of the end of the variant [end-buffer, end+buffer]
+            unsigned s = max(0, var.ref_pos_end - options.flanking_region);
+            view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, s, ref_region_end, false);
+        }
+        else
+        {
+            // extract reads left of the start of the variant [start-buffer, start]
+            view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, ref_region_end, false);
+        }
 
-        records_to_read_pairs(short_reads_1, short_ids_1,
-                              short_reads_2, short_ids_2,
-                              short_reads, short_read_bam, short_read_bai);
+        if (short_reads.size() < 20)
+        {
+            std::cout << "[ ERROR3 ] Not enough short reads (only " << short_reads.size()
+                      << ") for variant of type " << var.alt_seq
+                      << " in region " << var.ref_chrom << ":" << ref_region_start
+                      << "-" << ref_region_end << std::endl;
+            continue;
+        }
+
+        records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, short_read_bai);
+
+        if (length(short_reads_1) > 250) // ~400 reads -> 60x coverage is enough
+            subsample(short_reads_1, short_reads_2, 250);
 
         log_file << "--- Extracted " << short_reads.size() << " short reads that come in "
                  << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
@@ -315,6 +336,9 @@ int main(int argc, char const ** argv)
         ConsensusConfig config{}; // default
         config.verbose = options.verbose;
         compute_baseQ_stats(config, short_reads_1, short_reads_2);
+
+        log_file << "--- Short read base qualities: avg=" << config.baseQ_mean
+                 << " stdev=" << config.baseQ_std << "." << std::endl;
 
         Dna5String polished_ref = polish_to_perfection(short_reads_1,
                                                        short_reads_2,
@@ -345,10 +369,17 @@ int main(int argc, char const ** argv)
                                        "_" + var.id); // this name is important for evaluating
         writeRecord(final_fa, read_identifier, final_sequence);
 
+        auto end = std::chrono::high_resolution_clock::now();
         std::cout << "[ SUCCESS ] Polished variant " << var.ref_chrom << ":"
-                  << var.ref_pos << "\t\t" << var.alt_seq << std::endl;
+                  << var.ref_pos << "\t" << var.alt_seq << "\t["
+                  << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << "s]"
+                  << std::endl;
     }
     while (getline(input_vcf, line));
+
+    std::cout << "======================================================================" << std::endl
+              << "                                 DONE"  << std::endl
+              << "======================================================================" << std::endl;
 
     return 0;
 }

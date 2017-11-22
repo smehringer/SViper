@@ -357,8 +357,8 @@ void compute_mappQ_stats(ConsensusConfig & config,
 }
 
 void compute_baseQ_stats(ConsensusConfig & config,
-                         String<Dna5QString> const & reads1,
-                         String<Dna5QString> const & reads2)
+                         StringSet<Dna5QString> const & reads1,
+                         StringSet<Dna5QString> const & reads2)
 {
     if (length(reads1) == 0)
         return;

@@ -403,6 +403,8 @@ tuple<int, int> get_read_region_boundaries(BamAlignmentRecord const & record,
 inline DnaString build_consensus(StringSet<DnaString> const & seqs,
                                  vector<double> const & mapQ) // mapping qualities
 {
+    // TODO:: for efficiency, I think the best 5 reads for a consensus suffice
+
     Align<DnaString> align;
     resize(rows(align), length(seqs));
     for (unsigned i = 0; i < length(seqs); ++i)
