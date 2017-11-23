@@ -185,6 +185,16 @@ int main(int argc, char const ** argv)
                      << "----------------------------------------------------------------------" << std::endl;
             continue;
         }
+        if (var.sv_length > 1000000)
+        {
+            std::cout << "[ SKIP ] Variant " << var.ref_chrom << ":"
+                      << var.ref_pos << " of type " << var.alt_seq
+                      << " of length " << var.sv_length << " because it is too long." << std::endl;
+            log_file << "----------------------------------------------------------------------" << std::endl
+                     << " SKIP too long Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
+                     << "----------------------------------------------------------------------" << std::endl;
+            continue;
+        }
 
         log_file << "----------------------------------------------------------------------" << std::endl
                  << " PROCESS Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
@@ -209,7 +219,10 @@ int main(int argc, char const ** argv)
         // Extract long reads
         // ---------------------------------------------------------------------
         vector<BamAlignmentRecord> ont_reads;
-        view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, var.ref_pos - 50, var.ref_pos_end + 50, true);
+        // extract overlapping the start breakpoint +-50 bp's
+        view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, max(0, var.ref_pos - 50), var.ref_pos + 50, true);
+        // extract overlapping the end breakpoint +-50 bp's
+        view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, max(0, var.ref_pos_end - 50), var.ref_pos_end + 50, true);
 
         if (ont_reads.size() == 0)
         {
@@ -224,7 +237,7 @@ int main(int argc, char const ** argv)
         // Merge supplementary alignments to primary
         // ---------------------------------------------------------------------
         sort(ont_reads.begin(), ont_reads.end(), bamRecordNameLess());
-        ont_reads = merge_alignments(ont_reads);
+        ont_reads = merge_alignments(ont_reads); // next to merging this will also get rid of duplicated reads
 
         log_file << "--- After merging " << ont_reads.size() << " read(s) remain(s)." << std::endl;
 
@@ -371,8 +384,8 @@ int main(int argc, char const ** argv)
 
         auto end = std::chrono::high_resolution_clock::now();
         std::cout << "[ SUCCESS ] Polished variant " << var.ref_chrom << ":"
-                  << var.ref_pos << "\t" << var.alt_seq << "\t["
-                  << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << "s]"
+                  << var.ref_pos << "\t" << var.alt_seq << "\t[ "
+                  << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
                   << std::endl;
     }
     while (getline(input_vcf, line));
