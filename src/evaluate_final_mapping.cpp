@@ -64,6 +64,9 @@ int main(int argc, char ** argv)
     // Merge supplementary alignments before evaluating
     // -------------------------------------------------------------------------
 
+    BamHeader header;
+    readHeader(header, bamfileIn);
+
     // empty file must be check here otherwise the first read record will fail
     if (atEnd(bamfileIn))
         return 0;

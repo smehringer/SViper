@@ -17,8 +17,6 @@ int main(int argc, char ** argv)
 
     BamFileIn bamfileIn;
     BamHeader header;
-    BamFileOut bamfileOut(context(bamfileIn));
-    std::string out_filename = (std::string(argv[1]) + ".merged.sam");
 
     if (!open(bamfileIn, argv[1]))
     {
@@ -26,18 +24,21 @@ int main(int argc, char ** argv)
         return 1;
     }
 
+    readHeader(header, bamfileIn);
+    BamFileOut bamfileOut(context(bamfileIn));
+    std::string out_filename = (std::string(argv[1]) + ".merged.bam");
+
     if (!open(bamfileOut, out_filename.c_str()))
     {
         std::cerr << "ERROR: Could not open " << out_filename << std::endl;
         return 1;
     }
 
+    writeHeader(bamfileOut, header);
+
     // empty file must be check here otherwise the first read record will fail
     if (atEnd(bamfileIn))
         return 0;
-
-    readHeader(header, bamfileIn);
-    writeHeader(bamfileOut, header);
 
     BamAlignmentRecord record;
     vector<BamAlignmentRecord> record_group;
