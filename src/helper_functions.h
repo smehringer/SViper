@@ -524,8 +524,8 @@ Variant evaluate_alignment(BamAlignmentRecord const & record,
     {
         cerr << "Variant with id '" << id
              << "' could not be found in vcf file." << endl;
-        return Variant(string(chrom + "\t" + pos + "\t" + id +
-                              "\tN\tN\t.\tNOTFOUND\t*\t*\t*"));
+        return Variant(string(chrom + "\t0\t" + id +
+                              "\tN\tN\t.\tNOTFOUND\tEND=0;\t*\t*"));
     }
 
     Variant var = it->second;

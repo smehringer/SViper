@@ -377,9 +377,9 @@ int main(int argc, char const ** argv)
         // Print polished and flanked sequence to file
         // ---------------------------------------------------------------------
         std::string read_identifier = (string("final") +
-                                       "_" + var.ref_chrom +
-                                       "_" + to_string(var.ref_pos) +
-                                       "_" + var.id); // this name is important for evaluating
+                                       ":" + var.ref_chrom +
+                                       ":" + to_string(var.ref_pos) +
+                                       ":" + var.id); // this name is important for evaluating
         writeRecord(final_fa, read_identifier, final_sequence);
 
         auto end = std::chrono::high_resolution_clock::now();
