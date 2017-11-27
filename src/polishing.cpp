@@ -274,13 +274,19 @@ int main(int argc, char const ** argv)
 
         StringSet<DnaString> supporting_sequences;
 
-        for (auto rec : supporting_records)
+        // sort records such that the highest quality ones are chosen first
+        std::sort(supporting_records.begin(), supporting_records.end(), bamRecordMapQGreater());
+
+        std::vector<seqan::BamAlignmentRecord>::size_type maximum_long_reads = 5;
+        for (unsigned i = 0; i < std::min(maximum_long_reads, supporting_records.size()); ++i)
         {
-            auto region = get_read_region_boundaries(rec, ref_region_start, ref_region_end);
-            DnaString reg = infix(rec.seq, get<0>(region), get<1>(region));
+            auto region = get_read_region_boundaries(supporting_records[i], ref_region_start, ref_region_end);
+            DnaString reg = infix(supporting_records[i].seq, get<0>(region), get<1>(region));
             appendValue(supporting_sequences, reg);
 
-            log_file << "------ Region: [" << get<0>(region) << "-" << get<1>(region) << "] Length:" << length(reg) << " Name: "<< rec.qName << endl;
+            log_file << "------ Region: [" << get<0>(region) << "-" << get<1>(region)
+                     << "] Length:" << length(reg) << " Qual:" << supporting_records[i].mapQ
+                     << " Name: "<< supporting_records[i].qName << endl;
         }
 
         // Build consensus of supporting read regions

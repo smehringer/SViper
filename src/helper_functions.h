@@ -185,11 +185,11 @@ unsigned compute_fragment_length(String<CigarElement<char, unsigned>> & cigar)
     return len;
 }
 
-struct recordQualityLess
+struct bamRecordMapQGreater
 {
     bool operator()(BamAlignmentRecord lhs, BamAlignmentRecord rhs) const
     {
-        return lhs.qual < rhs.qual;
+        return lhs.mapQ >= rhs.mapQ;
     }
 };
 
@@ -403,8 +403,6 @@ tuple<int, int> get_read_region_boundaries(BamAlignmentRecord const & record,
 inline DnaString build_consensus(StringSet<DnaString> const & seqs,
                                  vector<double> const & mapQ) // mapping qualities
 {
-    // TODO:: for efficiency, I think the best 5 reads for a consensus suffice
-
     Align<DnaString> align;
     resize(rows(align), length(seqs));
     for (unsigned i = 0; i < length(seqs); ++i)

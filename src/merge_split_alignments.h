@@ -184,7 +184,7 @@ void truncate_cigar_left(BamAlignmentRecord & record, int until)
         }
     }
 
-    record.beginPos = record.beginPos - num_truncated_bases;
+    record.beginPos = record.beginPos + num_truncated_bases;
 }
 
 void transform_cigar_left_into_insertion(BamAlignmentRecord & record, int until)
@@ -228,126 +228,6 @@ void transform_cigar_left_into_insertion(BamAlignmentRecord & record, int until)
 }
 
 BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
-{
-    SEQAN_ASSERT(record_group.size() > 0);
-
-    // we now have all reads with the same name, given that the file was sorted
-    // sort alignment by quality but put primary alignment on top.
-    std::sort(record_group.begin(), record_group.end(), bamRecordQualityLess());
-
-    BamAlignmentRecord final_record = record_group[0];
-    // now check for supplementary alignment that can be merged
-
-#ifndef NDEBUG
-        if (record_group.size() > 1)
-        {
-            std::cout << "Merging group of " << record_group.size() << " with name " << final_record.qName << "\t" << endl;
-            for (auto const & rec : record_group)
-                cerr << "  -> "<< rec.qName << " " << rec.flag << " " << rec.rID << " " << rec.beginPos << " " << rec.mapQ << endl;
-        }
-#endif
-
-    for (unsigned i = 1; i < record_group.size(); ++i)
-    {
-        BamAlignmentRecord supp_record{record_group[i]};
-
-        if (hasFlagSecondary(supp_record)) // do not merge with secondary alignments
-            continue;
-        if (!hasFlagSupplementary(supp_record)) // only want to merge supplementary alignments
-            continue;
-        if (final_record.rID != supp_record.rID) // reference must be the same
-            continue;
-        if (hasFlagRC(final_record) != hasFlagRC(supp_record)) // orientation must be the same
-            continue;
-
-        if (compute_map_end_pos(supp_record.beginPos, supp_record.cigar) < final_record.beginPos)
-        { // ---supp-- DEL --final--
-#ifndef NDEBUG
-                cerr << "  -> ---supp-- DEL --final--" << endl;
-#endif
-            // Alter cigar string
-            // 1) remove soft clipping at the left end from the right alignment
-            unsigned final_read_begin = get_read_begin_and_alter_cigar(final_record);
-            // 2) Cut left alignment at the right end such that the read
-            // seequence does not overlap.
-            truncate_cigar_right(supp_record, final_read_begin);
-            // 3) append clipped bases, because there can't be clipping in the middle
-
-            // 4) concatenate cropped cigar string to one big one with a deletion inside
-            int deletion_size = final_record.beginPos - compute_map_end_pos(supp_record.beginPos, supp_record.cigar);
-            appendValue(supp_record.cigar, CigarElement<char, unsigned>('D', deletion_size));
-            append(supp_record.cigar, final_record.cigar);
-
-            // replace final variables
-            final_record.beginPos = supp_record.beginPos;
-            final_record.cigar = supp_record.cigar;
-
-            // update mapping info needed for evaluataion
-            BamTagsDict fin_tagsDict(final_record.tags);
-            BamTagsDict sup_tagsDict(supp_record.tags);
-            int fin_id{-1};
-            int sup_id{-1};
-            findTagKey(fin_id, fin_tagsDict, "NM");
-            findTagKey(sup_id, sup_tagsDict, "NM");
-            int fin_nm{0};
-            int sup_nm{0};
-            if (fin_id != -1)
-                extractTagValue(fin_nm, fin_tagsDict, fin_id);
-            if (sup_id != -1)
-                extractTagValue(sup_nm, sup_tagsDict, sup_id);
-            setTagValue(fin_tagsDict, "NM", fin_nm + sup_nm + deletion_size);
-        }
-        else if (compute_map_end_pos(final_record.beginPos, final_record.cigar) < supp_record.beginPos)
-        { // ---final-- DEL --supp--
-#ifndef NDEBUG
-                cerr << "  -> ---final-- DEL --supp--" << endl;
-#endif
-            // Alter cigar string
-            // 1) remove soft clipping at the right end from the primary (left) alignment
-            unsigned final_read_end = get_read_end_and_alter_cigar(final_record);
-
-            // 2) Cut supp (right) alignment at the left end such that the read
-            // sequence does not overlap.
-            truncate_cigar_left(supp_record, final_read_end);
-            // 3) append clipped bases, because there can't be clipping in the middle
-
-            // 4) concatenate cropped cigar string to one big one with a deletion inside
-            int deletion_size = supp_record.beginPos - compute_map_end_pos(final_record.beginPos, final_record.cigar);
-            appendValue(final_record.cigar, CigarElement<char, unsigned>('D', deletion_size));
-            append(final_record.cigar, supp_record.cigar);
-
-            // update mapping info needed for evaluataion
-            BamTagsDict fin_tagsDict(final_record.tags);
-            BamTagsDict sup_tagsDict(supp_record.tags);
-            int fin_id{-1};
-            int sup_id{-1};
-            findTagKey(fin_id, fin_tagsDict, "NM");
-            findTagKey(sup_id, sup_tagsDict, "NM");
-            int fin_nm{0};
-            int sup_nm{0};
-            if (fin_id != -1)
-                extractTagValue(fin_nm, fin_tagsDict, fin_id);
-            if (sup_id != -1)
-                extractTagValue(sup_nm, sup_tagsDict, sup_id);
-            setTagValue(fin_tagsDict, "NM", fin_nm + sup_nm + deletion_size);
-        }
-
-#ifndef NDEBUG
-        if (length(final_record.seq) != compute_fragment_length(final_record.cigar))
-        {
-            cerr << "[ERROR] CIGAR and sequence length don't match: "
-                 << length(final_record.seq) << "(seq length) != "
-                 << compute_fragment_length(final_record.cigar)
-                 << "(cigar length)." << endl;
-            throw std::exception();
-        }
-#endif
-    }
-
-    return final_record;
-}
-
-BamAlignmentRecord merge_record_group2(vector<BamAlignmentRecord> & record_group)
 {
     SEQAN_ASSERT(record_group.size() > 0);
 
@@ -411,7 +291,7 @@ BamAlignmentRecord merge_record_group2(vector<BamAlignmentRecord> & record_group
                 int deletion_size = prim_record.beginPos - compute_map_end_pos(supp_record.beginPos, supp_record.cigar);
                 appendValue(supp_record.cigar, CigarElement<char, unsigned>('D', deletion_size));
             }
-            else // INS
+            else if (compute_map_end_pos(supp_record.beginPos, supp_record.cigar) > prim_record.beginPos)// INS
             {
                 // 4) Compute bases that must inserted for the alignment to fit
                 transform_cigar_right_into_insertion(supp_record, prim_record.beginPos);

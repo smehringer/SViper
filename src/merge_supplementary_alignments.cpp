@@ -50,7 +50,7 @@ int main(int argc, char ** argv)
         if (!record_group.empty() &&
             (record_group[record_group.size() - 1]).qName != record.qName)
         {
-            BamAlignmentRecord merged_record = merge_record_group2(record_group);
+            BamAlignmentRecord merged_record = merge_record_group(record_group);
             writeRecord(bamfileOut, merged_record);
             record_group.clear();
             record_group.push_back(record);

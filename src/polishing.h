@@ -66,6 +66,16 @@ struct ConsensusConfig
          * of bases with half as good quality as the mean quality*/
         return score >= (max(min_coverage, mean_coverage/2) * (baseQ_mean + mappQ_mean/alpha) / 4);
     }
+
+    /* Allowed Length Deviation.
+     * Returns the minimum and maximum size a variant might have to be considered
+     * the same variant. E.g. a deletion of size 1000 is considered polished but
+     * the same, when the length is between 800-1200. */
+    bool sv_length_passes_threshold(unsigned length, Variant const & var)
+    {
+        return (length >= var.sv_length - (0.8 * var.sv_length) &&
+                length <= var.sv_length + (0.8 * var.sv_length));
+    }
 };
 
 struct Mapping_object
