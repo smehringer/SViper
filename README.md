@@ -1,4 +1,4 @@
-NanoSweep
+SViper
 =========
 
 This pipeline polishes deletions and isnertions called on long read data (ONT) by applying [Pilon](https://github.com/broadinstitute/pilon).
