@@ -14,7 +14,6 @@
 using namespace std;
 using namespace seqan;
 
-bool verbose{false};
 double const DEV_POS = 0.9;
 double const DEV_SIZE = 0.8;
 
@@ -38,7 +37,7 @@ struct Variant
         // read variant line into member variables
         ss >> ref_chrom;
         ss >> ref_pos;
-        if (ss.fail()) // e.g. when quality was '.' and cast to double failed
+        if (ss.fail()) // e.g. when pos was '*' and cast to int failed
             throw std::iostream::failure("ERROR when reading vcf file. Reference position could not be read for line " + line);
         ss >> id;
         ss >> ref_seq;
@@ -52,8 +51,6 @@ struct Variant
         ss >> samples;
 
         // check if all information are given
-
-
         if (ref_chrom.empty())
             throw std::iostream::failure("ERROR when reading vcf file. ref_chrom was not provided.");
         if (ref_pos == -1)
@@ -90,6 +87,7 @@ struct Variant
 
         // determine END position from END info tag
         auto n = info.find("END=");
+
         if (n !=  std::string::npos)
         {
             stringstream ss(info.substr(n+4, info.find(';', n) - n - 4));
@@ -238,7 +236,8 @@ bool is_supporting(BamAlignmentRecord const & record, Variant const & variant)
 {
     bool is_supporting{false};
 
-    // first advance to region of interest (- buffer)
+    // first advance to beginning of the region of interest.
+    // The region of interest starts at the allowed pos deviation.
     unsigned cigar_pos{0};
     int read_pos{0};
     int ref_pos{record.beginPos};
@@ -267,6 +266,7 @@ bool is_supporting(BamAlignmentRecord const & record, Variant const & variant)
                         return ref > (variant.ref_pos + variant.sv_length + DEV_POS * variant.sv_length);
                      }
                      );
+
     return is_supporting;
 }
 

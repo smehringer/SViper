@@ -26,7 +26,7 @@ struct CmdOptions
     string long_read_file_name;
     string short_read_file_name;
     string candidate_file_name;
-    string out_vcf_file_name;
+    string out_fa_file_name;
     string reference_file_name;
     string log_file_name;
 };
@@ -64,8 +64,11 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
         seqan::ArgParseArgument::INTEGER, "INT"));
 
     addOption(parser, seqan::ArgParseOption(
-        "o", "output-vcf",
-        "A filename for the polished vcf file.",
+        "o", "output-fa",
+        "A filename for the output file. NOTE: The current output is a fasta file, that contains the "
+        "polished sequences for each variant. Since the final realignment is not part of this tool yet,"
+        "The user must map the fasta file with a mapper of his choice (e.g. minimap2) and then call"
+        " evaluate_final_alignment.",
         seqan::ArgParseArgument::INPUT_FILE, "VCF_FILE"));
 
     addOption(parser, seqan::ArgParseOption(
@@ -104,7 +107,7 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     getOptionValue(options.long_read_file_name, parser, "long-read-bam");
     getOptionValue(options.short_read_file_name, parser, "short-read-bam");
     getOptionValue(options.reference_file_name, parser, "reference");
-    getOptionValue(options.out_vcf_file_name, parser, "output-vcf");
+    getOptionValue(options.out_fa_file_name, parser, "output-fa");
     getOptionValue(options.log_file_name, parser, "log-file");
     getOptionValue(options.flanking_region, parser, "flanking-region");
     options.verbose = isSet(parser, "verbose");
@@ -113,8 +116,8 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     //if (options.veryVerbose)
     //    options.verbose = true;
 
-    if (options.out_vcf_file_name.empty())
-        options.out_vcf_file_name = options.candidate_file_name + "polished.vcf";
+    if (options.out_fa_file_name.empty())
+        options.out_fa_file_name = options.candidate_file_name + "polished.vcf";
 
     return seqan::ArgumentParser::PARSE_OK;
 }
@@ -132,7 +135,7 @@ int main(int argc, char const ** argv)
     // Check files
     // -------------------------------------------------------------------------
     ifstream input_vcf;           // The candidate variants to polish
-    ofstream output_vcf;          // The polished variant as output
+    // ofstream output_vcf;          // The polished variant as output
     FaiIndex faiIndex;            // The reference sequence fasta index
     BamHeader long_read_header;   // The bam header object needed to fill bam context
     BamHeader short_read_header;  // The bam header object needed to fill bam context
@@ -144,13 +147,13 @@ int main(int argc, char const ** argv)
     ofstream log_file;            // The file to log all information
 
     if (!open_file_success(input_vcf, options.candidate_file_name.c_str()) ||
-        /*!open_file_success(output_vcf, options.out_vcf_file_name.c_str()) || */ // no direct vcf output available yet
+        /*!open_file_success(output_vcf, options.out_fa_file_name.c_str()) || */ // no direct vcf output available yet
         !open_file_success(long_read_bam, options.long_read_file_name.c_str()) ||
         !open_file_success(short_read_bam, options.short_read_file_name.c_str()) ||
         !open_file_success(long_read_bai, (options.long_read_file_name + ".bai").c_str()) ||
         !open_file_success(short_read_bai, (options.short_read_file_name + ".bai").c_str()) ||
         !open_file_success(faiIndex, options.reference_file_name.c_str()) ||
-        !open_file_success(final_fa, (options.out_vcf_file_name + ".fa").c_str()) ||
+        !open_file_success(final_fa, (options.out_fa_file_name + ".fa").c_str()) ||
         !open_file_success(log_file, options.log_file_name.c_str()))
         return 1;
 
@@ -167,12 +170,14 @@ int main(int argc, char const ** argv)
 
     // Scip VCF header
     // -------------------------------------------------------------------------
-    std::string line{"#"};
+    std::string line{"#"}; // TODO:: use seqan vcf parser instead (needs to be extended)
     while (line[0] == '#' && getline(input_vcf, line)) {}
 
+    // Polish variants
+    // -------------------------------------------------------------------------
     do // per Variant
     {
-        auto start = std::chrono::high_resolution_clock::now();
+        auto start = std::chrono::high_resolution_clock::now(); // capture time per variant
         Variant var{line};
 
         if (var.alt_seq != "<DEL>" && var.alt_seq != "<INS>")
@@ -200,25 +205,9 @@ int main(int argc, char const ** argv)
                  << " PROCESS Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
                  << "----------------------------------------------------------------------" << std::endl;
 
-        // Compute reference length, start and end position of the variant
-        // ---------------------------------------------------------------------
-        unsigned ref_fai_idx = 0;
-        if (!getIdByName(ref_fai_idx, faiIndex, var.ref_chrom))
-        {
-            log_file << "[ERROR]: FAI index has no entry for reference name"
-                     << var.ref_chrom << std::endl;
-            return 1;
-        }
-
-        int ref_length = sequenceLength(faiIndex, ref_fai_idx);
-        int ref_region_start = max(0, var.ref_pos - options.flanking_region);
-        int ref_region_end   = min(ref_length, var.ref_pos_end + options.flanking_region);
-
-        log_file << "Reference region " << var.ref_chrom << ":" << ref_region_start << "-" << ref_region_end << std::endl;
-
         // Extract long reads
         // ---------------------------------------------------------------------
-        vector<BamAlignmentRecord> ont_reads;
+        std::vector<seqan::BamAlignmentRecord> ont_reads;
         // extract overlapping the start breakpoint +-50 bp's
         view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, max(0, var.ref_pos - 50), var.ref_pos + 50, true);
         // extract overlapping the end breakpoint +-50 bp's
@@ -227,8 +216,10 @@ int main(int argc, char const ** argv)
         if (ont_reads.size() == 0)
         {
             log_file << "[ ERROR1 ] No long reads in reference region "
-                     << var.ref_chrom << ":" << ref_region_start << "-"
-                     << ref_region_end << std::endl;
+                     << var.ref_chrom << ":" << max(0, var.ref_pos - 50) << "-"
+                     << var.ref_pos + 50 << " or "
+                     << var.ref_chrom << ":" << max(0, var.ref_pos_end - 50) << "-"
+                     << var.ref_pos_end + 50 << "or " << std::endl;
             continue;
         }
 
@@ -259,14 +250,33 @@ int main(int argc, char const ** argv)
 
         if (supporting_records.size() == 0)
         {
-            std::cout << "[ ERROR2 ] No supporting reads for " << var.alt_seq
-                      << " in region " << var.ref_chrom << ":" << ref_region_start
-                      << "-" << ref_region_end << std::endl;
+            std::cout << "[ ERROR2 ] No supporting reads for a " << var.alt_seq
+                      << " in region " << var.ref_chrom << ":"
+                      << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
+                      << std::endl;
             continue;
         }
 
         log_file << "--- After searching for variant " << supporting_records.size()
                  << " supporting read(s) remain." << std::endl;
+
+        // Compute reference length, start and end position of region of interest
+        // ---------------------------------------------------------------------
+        unsigned ref_fai_idx = 0;
+        if (!seqan::getIdByName(ref_fai_idx, faiIndex, var.ref_chrom))
+        {
+            log_file << "[ ERROR ]: FAI index has no entry for reference name"
+                     << var.ref_chrom << std::endl;
+            continue;
+        }
+
+        int ref_length = seqan::sequenceLength(faiIndex, ref_fai_idx);
+        int ref_region_start = std::max(0, var.ref_pos - options.flanking_region);
+        int ref_region_end   = std::min(ref_length, var.ref_pos_end + options.flanking_region);
+
+        log_file << "Reference region " << var.ref_chrom << ":" << ref_region_start << "-" << ref_region_end << std::endl;
+
+        SEQAN_ASSERT_LEQ(ref_region_start, ref_region_end);
 
         // Crop fasta sequence of each supporting read for consensus
         // ---------------------------------------------------------------------

@@ -11,25 +11,45 @@
 
 #include <mateHunter.h>
 
+/*! Generic function for conveniently testing successful file access.
+ * @param file The input file object.
+ * @param name The filename to assign to the file object.
+ * @return Returns `true` on success, and `false` on failure.
+ */
 template <typename file_type>
 bool open_file_success(file_type & file, const char * name)
 {
     if (!seqan::open(file, name))
     {
         std::cerr << "ERROR: Could not open file " << name << std::endl;
-        return 0;
+        return false;
     }
-    return 1;
+    return true;
 }
 
+//! Comparator for sorting BamAlignmentRecords by name.
 struct bamRecordNameLess
 {
-    bool operator()(BamAlignmentRecord lhs, BamAlignmentRecord rhs) const
+    bool operator()(seqan::BamAlignmentRecord lhs, seqan::BamAlignmentRecord rhs) const
     {
         return lhs.qName < rhs.qName;
     }
 };
 
+/*! Imitates (a slightly more restricted) samtools view.
+ * This function appends every BamAlignmentRecord in region [start, end] to the
+ * output vector 'records'. A record must overlap the region [start, end] by
+ * at least one base, must not be a PCR duplicate or fail QC, and must have a
+ * mapping quality > 15.
+ * @param records    The output vector of records to append to.
+ * @param bam_file   The BAM file object to search for records in region [start, end].
+ * @param bam_index  The BAI file object corresponding to the bam file object.
+ * @param start      The start of the region to extract records from.
+ * @param end        The end of the region to extract records from.
+ * @param long_reads A bool wether extracting long reads or not. This is important,
+ *                   because seqan::jumpToRegion sometimes misses long reads thats
+ *                   start way before but still span the region.
+ */
 void view_bam(std::vector<seqan::BamAlignmentRecord> & records,
               seqan::BamFileIn & bam_file,
               seqan::BamIndex<seqan::Bai> const & bam_index,
@@ -86,29 +106,53 @@ void view_bam(std::vector<seqan::BamAlignmentRecord> & records,
     }
 }
 
-Dna5String append_ref_flanks(Dna5String const & seq,
-                             FaiIndex const & faiIndex,
-                             unsigned fai_idx,
-                             int ref_length,
-                             int start,
-                             int end,
-                             int length)
+/*! Appends (reference) flanks to a sequence.
+ * This function appends flanks of size 'length' to 'seq'. The flank-sequence is
+ * taken from the provided FASTA index 'fai_index'.
+ * @param seq        The sequene to append the flanks to.
+ * @param fai_index  The FASTA index to be queried for the flanking sequence.
+ * @param ref_length The length of the reference needed for function seqan::readRegion.
+ * @param start      The start of the region to extract flanks for.
+ * @param end        The end of the region to extract flanks for.
+ * @param length     The length of each flank.
+ */
+seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
+                                    seqan::FaiIndex const & fai_index,
+                                    unsigned fai_idx,
+                                    int ref_length,
+                                    int start,
+                                    int end,
+                                    int length)
 {
     SEQAN_ASSERT(start <= end);
 
-    Dna5String leftFlank;
-    Dna5String rightFlank;
+    seqan::Dna5String leftFlank;  // region: [start-length, start]
+    seqan::Dna5String rightFlank; // region: [end, end+length]
 
-    readRegion(leftFlank, faiIndex, fai_idx, max(0, start - length), max(0, start));
-    readRegion(rightFlank, faiIndex, fai_idx, min(end, ref_length), min(end + length, ref_length));
+    seqan::readRegion(leftFlank, fai_index, fai_idx, max(0, start - length), max(0, start));
+    seqan::readRegion(rightFlank, fai_index, fai_idx, min(end, ref_length), min(end + length, ref_length));
 
-    Dna5String new_seq = leftFlank;
-    append(new_seq, seq);
-    append(new_seq, rightFlank);
+    seqan::Dna5String new_seq = leftFlank;
+    seqan::append(new_seq, seq);
+    seqan::append(new_seq, rightFlank);
 
     return new_seq;
 }
 
+/*! Sorts extracted records into read pairs based on their names.
+ * This function first sorts a list of BamAlignmentRecords ('records') such that
+ * same named records are grouped. It then appends each pair of records to
+ * 'reads1' (first in pair) and 'reads2' (second in pair). If no mate is in 'records',
+ * because the pair is marked as aberrant, the mate is hunted in the bam file
+ * (mateHunter - Snædis). If no mate is present in the bam file or the pair is
+ * not abberant, a dummy mate (empty sequence) is appended to 'reads2'.
+ * @param seq        The sequene to append the flanks to.
+ * @param fai_index  The FASTA index to be queried for the flanking sequence.
+ * @param ref_length The length of the reference needed for function seqan::readRegion.
+ * @param start      The start of the region to extract flanks for.
+ * @param end        The end of the region to extract flanks for.
+ * @param length     The length of each flank.
+ */
 void records_to_read_pairs(StringSet<Dna5QString> & reads1,
                            StringSet<Dna5QString> & reads2,
                            vector<BamAlignmentRecord> & records,
@@ -202,6 +246,12 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
     }
 }
 
+/*! Randomly down-samples the members of two containers to N.
+ * This function uses std::random_shuffle to downsample container 'c1' and 'c2'.
+ * @param c1  The first container to down-sample.
+ * @param c2  The second container to down-sample.
+ * @param N   The size of sample to remain in container c1 and c2.
+ */
 template <typename container_type>
 void subsample(container_type & c1, container_type & c2, unsigned N)
 {
