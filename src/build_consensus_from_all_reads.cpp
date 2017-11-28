@@ -122,7 +122,7 @@ int main(int argc, char const ** argv)
     //process last group
     BamAlignmentRecord merged_record = merge_record_group(record_group);
     merged_records.push_back(merged_record);
-    if (verbose)
+    if (options.verbose)
         cout << "--- After merging, " << merged_records.size() << " record(s) remain(s)." << endl;
 
     // -------------------------------------------------------------------------
@@ -140,7 +140,7 @@ int main(int argc, char const ** argv)
         }
     }
     // TODO check if var is not empty!
-    if (verbose)
+    if (options.verbose)
         cout << "Searchin in reference region ["
              << (int)(var.ref_pos - DEV_POS * var.sv_length) << "-"
              << (int)(var.ref_pos + var.sv_length + DEV_POS * var.sv_length) << "]"
@@ -149,10 +149,10 @@ int main(int argc, char const ** argv)
              << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << endl;
 
     for (auto rec : merged_records)
-        if (is_supporting(rec, var))
+        if (record_supports_variant(rec, var))
             supporting_records.push_back(rec);
 
-    if (verbose)
+    if (options.verbose)
         cout << "--- After searching for variant <"
              << var.sv_type << ":" << var.ref_chrom << ":" << var.ref_pos << ":" << var.sv_length
              << "> " << supporting_records.size()
@@ -161,7 +161,7 @@ int main(int argc, char const ** argv)
     // -------------------------------------------------------------------------
     // Crop fasta sequence of each supporting read for consensus
     // -------------------------------------------------------------------------
-    if (verbose)
+    if (options.verbose)
     {
         cout << "--- Cropping read regions +-" << options.flanking_region << " around variants." << endl;
         cout << "--- Regions & Lengths:" << endl;
@@ -174,7 +174,7 @@ int main(int argc, char const ** argv)
         auto region = get_read_region_boundaries(rec, var.ref_pos - options.flanking_region, var.ref_pos_end + options.flanking_region);
         DnaString reg = infix(rec.seq, get<0>(region), get<1>(region));
         appendValue(supporting_sequences, reg);
-        if (verbose)
+        if (options.verbose)
         {
             cout << "------ [" << get<0>(region) << "-" << get<1>(region) << "] L:" << length(reg) << endl;
         }
@@ -183,7 +183,7 @@ int main(int argc, char const ** argv)
     // -------------------------------------------------------------------------
     // Build consensus of supporting read regions
     // -------------------------------------------------------------------------
-    if (verbose)
+    if (options.verbose)
         cout << "--- Building a consensus with a multiple sequence alignment." << endl;
 
     if (supporting_records.size() == 0)
@@ -204,7 +204,7 @@ int main(int argc, char const ** argv)
     // -------------------------------------------------------------------------
     // Write consensus sequence to output file
     // -------------------------------------------------------------------------
-    if (verbose)
+    if (options.verbose)
        cout << "--- Writing consensus sequence to file consensus.fa ." << endl;
 
     SeqFileOut seqFileOut("consensus.fa");

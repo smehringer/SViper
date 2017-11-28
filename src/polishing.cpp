@@ -11,6 +11,7 @@
 #include <seqan/graph_msa.h>
 
 #include <basics.h>
+#include <config.h>
 #include <merge_split_alignments.h>
 #include <helper_functions.h>
 #include <polishing.h>
@@ -245,7 +246,7 @@ int main(int argc, char const ** argv)
                  << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << std::endl;
 
         for (auto const & rec : ont_reads)
-            if (is_supporting(rec, var))
+            if (record_supports_variant(rec, var))
                 supporting_records.push_back(rec);
 
         if (supporting_records.size() == 0)
@@ -282,16 +283,16 @@ int main(int argc, char const ** argv)
         // ---------------------------------------------------------------------
         log_file << "--- Cropping long reads with a buffer of +-" << options.flanking_region << " around variants." << endl;
 
-        StringSet<DnaString> supporting_sequences;
+        StringSet<Dna5String> supporting_sequences;
+        std::vector<seqan::BamAlignmentRecord>::size_type maximum_long_reads = 5;
 
         // sort records such that the highest quality ones are chosen first
         std::sort(supporting_records.begin(), supporting_records.end(), bamRecordMapQGreater());
 
-        std::vector<seqan::BamAlignmentRecord>::size_type maximum_long_reads = 5;
         for (unsigned i = 0; i < std::min(maximum_long_reads, supporting_records.size()); ++i)
         {
             auto region = get_read_region_boundaries(supporting_records[i], ref_region_start, ref_region_end);
-            DnaString reg = infix(supporting_records[i].seq, get<0>(region), get<1>(region));
+            Dna5String reg = seqan::infix(supporting_records[i].seq, get<0>(region), get<1>(region));
             appendValue(supporting_sequences, reg);
 
             log_file << "------ Region: [" << get<0>(region) << "-" << get<1>(region)
@@ -304,32 +305,32 @@ int main(int argc, char const ** argv)
         vector<double> mapping_qualities;
         mapping_qualities.resize(supporting_records.size());
         for (unsigned i = 0; i < supporting_records.size(); ++i)
-        {
             mapping_qualities[i] = (supporting_records[i]).mapQ;
-        }
 
-        DnaString cns = build_consensus(supporting_sequences, mapping_qualities);
+        Dna5String cns = build_consensus(supporting_sequences, mapping_qualities);
 
         log_file << "--- Built a consensus with a MSA of length " << length(cns) << "." << endl;
 
         // Extract short reads in region
         // ---------------------------------------------------------------------
-        StringSet<Dna5QString> short_reads_1; // first in pair
-        StringSet<Dna5QString> short_reads_2; // second in pair
+        StringSet<Dna5QString> short_reads_1; // reads (first in pair)
+        StringSet<Dna5QString> short_reads_2; // mates (second in pair)
 
         vector<BamAlignmentRecord> short_reads;
+        // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-reagion,
+        // then ectract reads for each break point seperately.
         if (ref_region_end - ref_region_start > options.flanking_region * 2 + 150) // 150 = illumina length
         {
-            // extract reads left of the start of the variant [start-buffer, start+buffer]
+            // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
             unsigned e = min(ref_length, var.ref_pos + options.flanking_region);
             view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, e, false);
-            // and right of the end of the variant [end-buffer, end+buffer]
+            // and right of the end of the variant [end-flanking_region, end+flanking_region]
             unsigned s = max(0, var.ref_pos_end - options.flanking_region);
             view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, s, ref_region_end, false);
         }
         else
         {
-            // extract reads left of the start of the variant [start-buffer, start]
+            // extract reads left of the start of the variant [start-flanking_region, start]
             view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, ref_region_end, false);
         }
 
@@ -345,7 +346,7 @@ int main(int argc, char const ** argv)
         records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, short_read_bai);
 
         if (length(short_reads_1) > 250) // ~400 reads -> 60x coverage is enough
-            subsample(short_reads_1, short_reads_2, 250);
+            subsample(short_reads_1, short_reads_2, 250); // sub sample short reads to 250 pairs
 
         log_file << "--- Extracted " << short_reads.size() << " short reads that come in "
                  << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
@@ -356,22 +357,22 @@ int main(int argc, char const ** argv)
         // read length) to the conesnsus such that the reads find a high quality
         // anchor for mapping.
         String<char> id = "consensus";
-        Dna5String ref = append_ref_flanks(cns, faiIndex,
-                                           ref_fai_idx, ref_length,
-                                           ref_region_start, ref_region_end, 150);
+        Dna5String flanked_consensus = append_ref_flanks(cns, faiIndex,
+                                                         ref_fai_idx, ref_length,
+                                                         ref_region_start, ref_region_end, 150);
 
         // Polish flanked consensus sequence with short reads
         // ---------------------------------------------------------------------
-        ConsensusConfig config{}; // default
+        SViperConfig config{}; // default
         config.verbose = options.verbose;
-        compute_baseQ_stats(config, short_reads_1, short_reads_2);
+        compute_baseQ_stats(config, short_reads_1, short_reads_2); //TODO:: return wualities and assign to cinfig outside
 
         log_file << "--- Short read base qualities: avg=" << config.baseQ_mean
                  << " stdev=" << config.baseQ_std << "." << std::endl;
 
         Dna5String polished_ref = polish_to_perfection(short_reads_1,
                                                        short_reads_2,
-                                                       ref, config);
+                                                       flanked_consensus, config);
 
         log_file << "DONE POLISHING: Total of "
                  << config.substituted_bases << " substituted, "
@@ -396,6 +397,7 @@ int main(int argc, char const ** argv)
                                        ":" + var.ref_chrom +
                                        ":" + to_string(var.ref_pos) +
                                        ":" + var.id); // this name is important for evaluating
+
         writeRecord(final_fa, read_identifier, final_sequence);
 
         auto end = std::chrono::high_resolution_clock::now();

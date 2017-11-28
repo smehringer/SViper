@@ -26,7 +26,7 @@ int main(int argc, char ** argv)
 
     readHeader(header, bamfileIn);
     BamFileOut bamfileOut(context(bamfileIn));
-    std::string out_filename = (std::string(argv[1]) + ".merged.bam");
+    std::string out_filename = (std::string(argv[1]) + ".merged.sam");
 
     if (!open(bamfileOut, out_filename.c_str()))
     {

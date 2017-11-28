@@ -72,8 +72,9 @@ int main(int argc, char ** argv)
         return 0;
 
     BamAlignmentRecord record;
-    vector<BamAlignmentRecord> record_group;
+    vector<BamAlignmentRecord> record_group; // will contain all records with the same read name
 
+    // BAM file must be sorted by name
     while (!atEnd(bamfileIn))
     {
         readRecord(record, bamfileIn);
@@ -96,7 +97,6 @@ int main(int argc, char ** argv)
             record_group.push_back(record);
         }
     }
-
     //process last group
     BamAlignmentRecord merged_record = merge_record_group(record_group);
     Variant polished_variant = evaluate_alignment(merged_record, variant_map);

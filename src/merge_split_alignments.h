@@ -20,6 +20,27 @@ struct bamRecordQualityLess
     }
 };
 
+// This function computes the end position of the mapping
+int compute_map_end_pos(unsigned map_begin_pos,
+                        String<CigarElement<char, unsigned>> & cigar)
+{
+    int len{0}; // tracks read length so far
+    for (auto ce : cigar) //
+        if (ce.operation & 4) // D or M, not I nor S
+            len += ce.count;
+    return map_begin_pos + len;
+}
+
+
+unsigned compute_fragment_length(String<CigarElement<char, unsigned>> & cigar)
+{
+    unsigned len{0}; // tracks read length so far
+    for (auto ce : cigar) //
+        if (ce.operation != 'D')
+            len += ce.count;
+    return len;
+}
+
 unsigned get_read_begin_and_alter_cigar(BamAlignmentRecord & record)
 {
     unsigned read_begin_pos{0};

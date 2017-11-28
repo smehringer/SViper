@@ -27,7 +27,7 @@ bool open_file_success(file_type & file, const char * name)
     return true;
 }
 
-//! Comparator for sorting BamAlignmentRecords by name.
+//! Comparator for sorting BamAlignmentRecords by name (ascending).
 struct bamRecordNameLess
 {
     bool operator()(seqan::BamAlignmentRecord lhs, seqan::BamAlignmentRecord rhs) const
@@ -35,6 +35,129 @@ struct bamRecordNameLess
         return lhs.qName < rhs.qName;
     }
 };
+
+//! Comparator for sorting BamAlignmentRecords by mapping quality (descending).
+struct bamRecordMapQGreater
+{
+    bool operator()(BamAlignmentRecord lhs, BamAlignmentRecord rhs) const
+    {
+        return lhs.mapQ >= rhs.mapQ;
+    }
+};
+
+/*! A generic function to advance in the cigar string.
+ * This function takes the current position in the cigar string (cigar_pos),
+ * a corresponding position in the reference (ref_pos) and read (read_pos)
+ * sequenc and updates them whenever advancing a step forward. The function
+ * advances on the cigar string ('cigar') until the cigar is at end or the
+ * stop criterion (lambda function) is met.
+ * Attention: The cigar_pos is icremented after additions to ref/read_pos have
+ * been made, thus, when using this function, be aware that the cigar operation
+ * of interest (that met the stop criterion) is the one at cigar_pos - 1.
+ * @param cigar_pos The current position in the `cigar` string.
+ * @param ref_pos   The current position in the reference regarding the `cigar` string.
+ * @param read_pos  The current position in the read regarding the `cigar` string.
+ * @param cigar     The cigar string in question.
+ * @param stop_criterion A lambda function called on ref/read_pos to determine if
+ *                       advancing in the cigar should stop.
+ */
+template <typename lambda_type>
+void advance_in_cigar(unsigned & cigar_pos,
+                      int & ref_pos,
+                      int & read_pos,
+                      String<CigarElement<char, unsigned>> const & cigar,
+                      lambda_type && stop_criterion)
+{
+    while (cigar_pos < length(cigar))
+    {
+        if (stop_criterion(ref_pos, read_pos))
+            break;
+
+        if ((cigar[cigar_pos]).operation == 'M')
+        {
+            read_pos += (cigar[cigar_pos]).count;
+            ref_pos  += (cigar[cigar_pos]).count;
+        }
+        else if ((cigar[cigar_pos]).operation == 'I' ||
+                 (cigar[cigar_pos]).operation == 'S' ||
+                 (cigar[cigar_pos]).operation == 'H')
+        {
+            read_pos += (cigar[cigar_pos]).count;
+        }
+        else // D
+        {
+            ref_pos += (cigar[cigar_pos]).count;
+        }
+        ++cigar_pos;
+    }
+}
+
+/*! Get the positions in the read sequence that correspond to the aligned
+ * positions in the reference.
+ * e.g.   ref  A T C G T - A   (a) ref region [0,5] -> read region [0,4]
+ *             |     | |   |   (b) ref region [2,4] -> read region [1,3]
+ *        read A - - G T C A
+ *
+ * @param record           The aligned read to extract start end end postion from.
+ * @param ref_region_begin The start of the reference region.
+ * @param ref_region_end   The end of the reference region.
+ * @return Returns that start and end position in the read sequence that
+ *         correspond to the start and end position of the reference given the
+ *         alignment represented by the cigar string.
+ */
+tuple<int, int> get_read_region_boundaries(BamAlignmentRecord const & record,
+                                           int ref_region_begin,
+                                           int ref_region_end)
+{
+    int read_region_begin;
+    int read_region_end;
+
+    if (ref_region_begin >= ref_region_end)
+    {
+        cerr << "[GET READ REGION ERROR]"
+             << " for record " << record.qName
+             << " Start (" << ref_region_begin
+             << ") >= End (" << ref_region_end << ")" << endl;
+             return make_tuple(0, 0);
+    }
+
+    // advance to begin of region of interest
+    unsigned cigar_pos{0};
+    int read_pos{-1};                // -1 because ref position is 0 based
+    int ref_pos{record.beginPos -1}; // -1 because ref position is 0 based
+
+    advance_in_cigar(cigar_pos,
+                     ref_pos,
+                     read_pos,
+                     record.cigar,
+                     [&ref_region_begin] (int ref, int /*read*/) {return ref >= ref_region_begin;});
+
+    read_region_begin = (read_pos > 0 ) ? read_pos : 0; // in case mapping pos is inside ref span
+
+    // advance to end of region of interest
+    advance_in_cigar(cigar_pos,
+                     ref_pos,
+                     read_pos,
+                     record.cigar,
+                     [&ref_region_end] (int ref, int /*read*/) {return ref >= ref_region_end;});
+
+    // calculate region end pos in read
+    --cigar_pos;
+    if ((record.cigar[cigar_pos]).operation == 'M')
+    {
+        read_region_end = read_pos - (ref_pos - ref_region_end - 1);
+    }
+    else if ((record.cigar[cigar_pos]).operation == 'D')
+    {
+        read_region_end = read_pos + 1;
+    }
+    else // I
+    {
+        read_region_end = read_pos; // should never happen.. but just in case
+    }
+
+    return make_tuple(read_region_begin, read_region_end);
+}
 
 /*! Imitates (a slightly more restricted) samtools view.
  * This function appends every BamAlignmentRecord in region [start, end] to the
@@ -247,7 +370,7 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
 }
 
 /*! Randomly down-samples the members of two containers to N.
- * This function uses std::random_shuffle to downsample container 'c1' and 'c2'.
+ * This function uses std::random_shuffle to downsample containers 'c1' and 'c2'.
  * @param c1  The first container to down-sample.
  * @param c2  The second container to down-sample.
  * @param N   The size of sample to remain in container c1 and c2.
@@ -275,4 +398,51 @@ void subsample(container_type & c1, container_type & c2, unsigned N)
 
     c1 = c1_new;
     c2 = c2_new;
+}
+
+/*! Build a consensus sequence using a MSA.
+ * This function first builds a multiple sequence alignment of all sequences in
+ * `seqs` and then uses this alignment to compute a consensus sequence based on
+ * a weighted majority vote on each alignment column. The weight for each base
+ * per sequence per alignment column given in `quals`.
+ * @param seqs  The sequences to be used for MSA and consensus construction.
+ * @param quals The corresponding the qualities for each sequence (position based).
+ * @return  Returns the consensus sequence obtained from the MSA profile.
+ */
+inline Dna5String build_consensus(StringSet<Dna5String> const & seqs,
+                                  vector<double> const & quals) // mapping qualities
+{
+    // TODO:: include base qualities from bam file
+    Align<Dna5String> align;
+    seqan::resize(seqan::rows(align), seqan::length(seqs));
+    for (unsigned i = 0; i < seqan::length(seqs); ++i)
+        seqan::assignSource(seqan::row(align, i), seqs[i]);
+
+    seqan::globalMsaAlignment(align, seqan::SimpleScore(5, -3, -1, -3));
+
+    seqan::Dna5String consensus;
+    seqan::String<seqan::ProfileChar<seqan::Dna5, double> > profile;
+    seqan::resize(profile, 1);
+
+    // fill profile and get maximum supported character for each position
+    // going over the alignment columnwise allows us to only store a single
+    // profile entry (always profile[0]) which can be replaced every time.
+    for (unsigned i = 0; i < length(row(align, 0)); ++i)
+    {
+        for (unsigned rowNo = 0; rowNo < length(seqs); ++rowNo)
+            if (i > seqan::countLeadingGaps(row(align, rowNo)) && // do not count leading and trailing gaps
+                i < (seqan::length(seqan::row(align, rowNo)) - seqan::countTrailingGaps(row(align, rowNo))))
+                profile[0].count[seqan::ordValue(seqan::getValue(row(align, rowNo), i))] += (1.0 * quals[rowNo] / 100);
+
+        int idx = seqan::getMaxIndex(profile[0]);
+
+        if (idx < 4)  // is not gap
+            seqan::appendValue(consensus, Dna(idx));
+
+        // clear profile (Note: clear(profile) compiles but has not the correct effect
+        for (auto & c : profile[0].count)
+            c = 0;
+    }
+
+    return consensus;
 }
