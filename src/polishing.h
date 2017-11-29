@@ -11,7 +11,7 @@
 #include <seqan/graph_msa.h>
 
 #include <config.h>
-#include <helper_functions.h>
+#include <basics.h>
 #include <mapping.h>
 
 using namespace std;

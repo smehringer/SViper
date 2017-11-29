@@ -3,22 +3,9 @@
 #include <iostream>
 #include <seqan/bam_io.h>
 
-#include <helper_functions.h>
 #include <basics.h>
 
 using namespace seqan;
-
-struct bamRecordQualityLess
-{
-    bool operator()(BamAlignmentRecord lhs, BamAlignmentRecord rhs) const
-    {
-        if (!hasFlagSupplementary(lhs) && !hasFlagSecondary(lhs)) // is primary
-            return true;
-        if (!hasFlagSupplementary(rhs) && !hasFlagSecondary(rhs)) // is primary
-            return false;
-        return lhs.qual >= rhs.qual;
-    }
-};
 
 // This function computes the end position of the mapping
 int compute_map_end_pos(unsigned map_begin_pos,

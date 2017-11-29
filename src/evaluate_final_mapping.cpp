@@ -8,8 +8,10 @@
 #include <seqan/align.h>
 #include <seqan/graph_msa.h>
 
-#include <helper_functions.h>
+#include <basics.h>
+#include <variant.h>
 #include <merge_split_alignments.h>
+#include <evaluate_final_mapping.h>
 
 using namespace std;
 using namespace seqan;

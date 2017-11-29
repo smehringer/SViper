@@ -3,6 +3,11 @@
 #include <sstream>
 #include <regex>
 
+#include <basics.h>
+
+double const DEV_SIZE = 0.8;
+double const DEV_POS = 0.9;
+
 enum SV_TYPE
 {
     UNKOWN=0,
@@ -15,9 +20,9 @@ enum SV_TYPE
 
 struct Variant
 {
-    Variant(const string & line)
+    Variant(const std::string & line)
     {
-        stringstream ss(line);
+        std::stringstream ss(line);
 
         // read variant line into member variables
         ss >> ref_chrom;
@@ -75,7 +80,7 @@ struct Variant
 
         if (n !=  std::string::npos)
         {
-            stringstream ss(info.substr(n+4, info.find(';', n) - n - 4));
+            std::stringstream ss(info.substr(n+4, info.find(';', n) - n - 4));
             ss >> ref_pos_end;                 // store end temporarily
             if (ss.fail())
                 throw std::iostream::failure("ERROR when reading vcf file. END value "+
@@ -97,7 +102,7 @@ struct Variant
             info.substr(n+6, info.find(';', n) - n - 6) != "NA" &&
             info.substr(n+6, info.find(';', n) - n - 6) != ".")
         {
-            stringstream ss(info.substr(n+6, info.find(';', n) - n - 6));
+            std::stringstream ss(info.substr(n+6, info.find(';', n) - n - 6));
             ss >> sv_length;
             if (ss.fail())
                 throw std::iostream::failure("ERROR when reading vcf file. SVLEN value "+
@@ -120,17 +125,17 @@ struct Variant
 
     SV_TYPE sv_type;
     int     sv_length{-1};
-    string  ref_chrom;
+    std::string  ref_chrom;
     int     ref_pos{-1};
     int     ref_pos_end{-1};
-    string  id;
-    string  ref_seq;
-    string  alt_seq;
+    std::string  id;
+    std::string  ref_seq;
+    std::string  alt_seq;
     double  quality{0};
-    string  filter;
-    string  info;
-    string  format;
-    string  samples;
+    std::string  filter;
+    std::string  info;
+    std::string  format;
+    std::string  samples;
 
     void write(std::ostream & stream)
     {
@@ -157,7 +162,7 @@ bool is_same_sv_type(char cigar_operation, SV_TYPE type)
     return false;
 }
 
-bool record_supports_variant(BamAlignmentRecord const & record, Variant const & variant)
+bool record_supports_variant(seqan::BamAlignmentRecord const & record, Variant const & variant)
 {
     bool is_supporting{false};
 
@@ -254,7 +259,7 @@ bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
 
         if (variant.sv_type == SV_TYPE::INS)
         {
-            stringstream ss;
+            std::stringstream ss;
             ss << "SEQ=" << seqan::infix(record.seq, read_pos, read_pos + variant.sv_length);
 
             if (std::regex_search(variant.info, seq_re))

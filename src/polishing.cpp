@@ -13,8 +13,8 @@
 #include <basics.h>
 #include <config.h>
 #include <merge_split_alignments.h>
-#include <helper_functions.h>
 #include <polishing.h>
+#include <variant.h>
 
 using namespace std;
 using namespace seqan;
@@ -159,7 +159,7 @@ int main(int argc, char const ** argv)
         return 1;
 
     std::cout << "======================================================================" << std::endl
-              << "START polishing variants in of file" << options.candidate_file_name << std::endl
+              << "START polishing variants in of file " << options.candidate_file_name << std::endl
               << "======================================================================" << std::endl;
 
     // Read bam file header
@@ -228,7 +228,7 @@ int main(int argc, char const ** argv)
 
         // Merge supplementary alignments to primary
         // ---------------------------------------------------------------------
-        sort(ont_reads.begin(), ont_reads.end(), bamRecordNameLess());
+        std::sort(ont_reads.begin(), ont_reads.end(), bamRecordNameLess());
         ont_reads = merge_alignments(ont_reads); // next to merging this will also get rid of duplicated reads
 
         log_file << "--- After merging " << ont_reads.size() << " read(s) remain(s)." << std::endl;

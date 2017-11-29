@@ -10,7 +10,7 @@
 
 double compute_identity_measure(seqan::BamAlignmentRecord const & record)
 {
-    seqan::BamTagsDict seqan::tagsDict(record.tags);
+    seqan::BamTagsDict tagsDict(record.tags);
     int id{-1};
     seqan::findTagKey(id, tagsDict, "NM");
 

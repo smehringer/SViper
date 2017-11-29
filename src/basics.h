@@ -8,6 +8,8 @@
 
 #include <seqan/bam_io.h>
 #include <seqan/seq_io.h>
+#include <seqan/align.h>
+#include <seqan/graph_msa.h>
 
 #include <mateHunter.h>
 
@@ -30,7 +32,7 @@ bool open_file_success(file_type & file, const char * name)
 //! Comparator for sorting BamAlignmentRecords by name (ascending).
 struct bamRecordNameLess
 {
-    bool operator()(seqan::BamAlignmentRecord lhs, seqan::BamAlignmentRecord rhs) const
+    bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
     {
         return lhs.qName < rhs.qName;
     }
@@ -39,9 +41,23 @@ struct bamRecordNameLess
 //! Comparator for sorting BamAlignmentRecords by mapping quality (descending).
 struct bamRecordMapQGreater
 {
-    bool operator()(BamAlignmentRecord lhs, BamAlignmentRecord rhs) const
+    bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
     {
-        return lhs.mapQ >= rhs.mapQ;
+        return lhs.mapQ > rhs.mapQ;
+    }
+};
+
+//! Comparator for sorting BamAlignmentRecords by mapping quality (descending)
+//! But the primary alignment shell always be at the very top.
+struct bamRecordQualityLess
+{
+    bool operator()(BamAlignmentRecord const & lhs, BamAlignmentRecord const & rhs) const
+    {
+        if (!hasFlagSupplementary(lhs) && !hasFlagSecondary(lhs)) // is primary
+            return true;
+        if (!hasFlagSupplementary(rhs) && !hasFlagSecondary(rhs)) // is primary
+            return false;
+        return lhs.mapQ > rhs.mapQ;
     }
 };
 
