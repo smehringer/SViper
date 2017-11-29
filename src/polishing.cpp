@@ -70,7 +70,7 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
         "polished sequences for each variant. Since the final realignment is not part of this tool yet,"
         "The user must map the fasta file with a mapper of his choice (e.g. minimap2) and then call"
         " evaluate_final_alignment.",
-        seqan::ArgParseArgument::INPUT_FILE, "VCF_FILE"));
+        seqan::ArgParseArgument::INPUT_FILE, "FA_FILE"));
 
     addOption(parser, seqan::ArgParseOption(
         "g", "log-file",
