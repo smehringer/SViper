@@ -8,6 +8,17 @@
 
 #include <variant.h>
 
+/*! Computes the identity score for evaluation.
+ * The identity score shall represent how similar the polished sequence is to
+ * the reference. The score therefore is computed by taking the edit
+ * distance (NM tag) and dividing it by the length of the sequence.
+ * This actual identity score exculdes the one (true) variant found in the
+ * polished sequence, since this is expected and the correpsonging edit distance
+ * will be added to the measurement afterwards.
+ * @param record The alignment record containing the alignment of the polished
+ *               sequence to the reference.
+ * @return Returns measurement as double in range [0,100].
+ */
 double compute_identity_measure(seqan::BamAlignmentRecord const & record)
 {
     seqan::BamTagsDict tagsDict(record.tags);
@@ -23,6 +34,20 @@ double compute_identity_measure(seqan::BamAlignmentRecord const & record)
     return (1 - (nm/(seqan::length(record.seq) - 10000))) * 100;
 }
 
+
+/*! Computes the fuzzyness score for evaluation.
+ * Since the edit distance of one big event (DEL/INS) can be the same as several
+ * small ones, a second measurement is introduced for the evaluation of polishing.
+ * The fuzzyness score represents the amount of events found in the polished
+ * sequence alignment to the reference. It is computed by dividing the number of
+ * events (DEL/INS) by the length of the alignment, subtracted off 1 (we want the
+ * higher the better, analogous to the identity score).
+ * NOTE: The higher the score the less fuzzy is the alignment and the better did
+ *       did polishing work.
+ * @param record The alignment record containing the alignment of the polished
+ *               sequence to the reference.
+ * @return Returns measurement as double in range [0,100].
+ */
 double compute_fuzzyness_measure(seqan::BamAlignmentRecord const & record)
 {
     unsigned count{0};
@@ -46,6 +71,12 @@ double compute_fuzzyness_measure(seqan::BamAlignmentRecord const & record)
     return (1.0 - ((double)count / ((length(record.seq) - 10000) * 0.3 / 1.3) )) * 100.0;
 }
 
+/*! Assigns a variant the average of identity and fuzzyness score.
+ * Based on the polsihed sequence alignment given in record
+ * @param record The alignment record containing the alignment of the polished
+ *               sequence to the reference.
+ * @param variant The variant to be scored (Quality member will be replaced).
+ */
 void assign_quality(seqan::BamAlignmentRecord const & record,
                     Variant & variant,
                     bool true_variant)
@@ -68,6 +99,18 @@ void assign_quality(seqan::BamAlignmentRecord const & record,
     variant.quality = (identity + fuzzyness) / 2;
 }
 
+/*! Evaluates a polished sequence alignment.
+ * This function takes a polished sequence alignment store in `record`, extracts
+ * the corresponding variant information from the name (ATTENTION: This only
+ * works if the read name for mapping contains a name of the following pattern:
+ * `whateverName:chr:pos:is` and if the ids of the variants given to sviper are
+ * the same as the ones given to evaluate_final_alignment), refines the variant
+ * and returns it.
+ * @param record The alignment record containing the alignment of the polished
+ *               sequence to the reference.
+ * @param variant_map The map containing all variants that were polished beforehand.
+ * @return Returns the refined varaint.
+ */
 Variant evaluate_alignment(seqan::BamAlignmentRecord const & record,
                            std::map<std::string, Variant> const & variant_map)
 {

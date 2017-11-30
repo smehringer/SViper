@@ -163,7 +163,8 @@ void truncate_cigar_left(BamAlignmentRecord & record, int until)
                      [&until] (int /*ref_pos*/, int read_pos) {return read_pos >= (until + 1);});
 
     num_truncated_bases += ref_pos - record.beginPos;
-    erase(record.cigar, 0, cigar_pos - 1); // erase the overlapping beginning, Note that erase(0,4) = erase [0,4)
+    if (cigar_pos > 0) // do not run tinto segmentation fault.
+        erase(record.cigar, 0, cigar_pos - 1); // erase the overlapping beginning, Note that erase(0,4) = erase [0,4)
 
     if (curr_read_pos == (until + 1))
     {
@@ -353,7 +354,7 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
                  << compute_fragment_length(prim_record.cigar)
                  << "(cigar length). Do not use merged record." << endl;
 #ifndef NDEBUG
-            throw std::exception();
+            // throw std::exception();
 #endif
         }
         else // screwing with cigar was successfull. Replace final_record

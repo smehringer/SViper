@@ -1,5 +1,6 @@
 // This header only file is adapted from the mateHunter program written by
 // Snædís <snaedisk@internal.decode.is> . Thank You :-)
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -9,6 +10,9 @@
 using namespace std;
 using namespace seqan;
 
+/*! Find the mate of a read by searching in the BAM file.
+ *
+ */
 BamAlignmentRecord mateHunt(BamAlignmentRecord const & record,
                              BamFileIn & bam_file,
                              BamIndex<Bai> const & bam_index)
@@ -18,7 +22,7 @@ BamAlignmentRecord mateHunt(BamAlignmentRecord const & record,
     bool hasAlignments = false;
     if (!jumpToRegion(bam_file, hasAlignments, record.rNextId, record.pNext, record.pNext+1, bam_index))
     {
-        std::cerr << "ERROR: Could not jump to region "
+        std::cerr << "[ERROR] mateHunt - Could not jump to region "
                   << record.rNextId << ":" << record.pNext
                   << " to find a records mate." << std::endl;
         return mate;
@@ -26,7 +30,7 @@ BamAlignmentRecord mateHunt(BamAlignmentRecord const & record,
 
     if (!hasAlignments)
     {
-        std::cerr << "ERROR: Could not find any reads in region "
+        std::cerr << "[ERROR] mateHunt - Could not find any reads in region "
                   << record.rNextId << ":" << record.pNext
                   << " to find a records mate." << std::endl;
         return mate;

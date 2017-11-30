@@ -2,8 +2,13 @@
 
 #include <seqan/align.h>
 
-/*! Keeps mapping information for one read pair.
- *
+/*! Stores mapping information for one read pair.
+ * This struct stores mapping information in the form of two pairwise alignments.
+ * A pairwise alignment in seqan is represented as two gapped strings (Gaps object).
+ * Therefore, there are 4 gaps bjects: A gapped read and reference sequence for
+ * the alignment of the first read and the same again for the second read (mate).
+ * In addition, the booleans read/mate_is_rc indicate weather the read was
+ * mapped reverse complementedand and mapQread/mate stores the mapping quality.
  */
 struct Mapping_object
 {
@@ -15,13 +20,13 @@ struct Mapping_object
     TRead read;
     TGapsRead gapsRead;
     TGapsRef gapsRef;
-    bool read_is_rc{false};
+    bool read_is_rc{false}; // rc = reverse-complemented
     double mapQRead{0.0};
 
     TRead mate;
     TGapsRead gapsMate;
     TGapsRef gapsRefMate;
-    bool mate_is_rc{false};
+    bool mate_is_rc{false}; // rc = reverse-complemented
     double mapQMate{0.0};
 
     bool proper_pair{false};
@@ -48,19 +53,21 @@ struct Mapping_object
     }
 };
 
-
+//! Computes the position of the last non-gap-character in a gaps object.
 template <typename string_type>
 inline int gapsEndPos(seqan::Gaps<string_type, seqan::ArrayGaps> const & gaps)
 {
     return length(gaps) - seqan::countTrailingGaps(gaps);
 }
 
+//! Computes the position of the first non-gap-character in a gaps object.
 template <typename string_type>
 inline int gapsBeginPos(seqan::Gaps<string_type, seqan::ArrayGaps> const & gaps)
 {
     return seqan::countLeadingGaps(gaps);
 }
 
+//! Computes the mapping quality score: The PHRED quality of the edit-distance/length.
 double compute_mappQ(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRead,
                      seqan::Gaps<Dna5String, seqan::ArrayGaps>  & gapsRef)
 {
@@ -71,6 +78,18 @@ double compute_mappQ(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRead,
     return (-10 * std::log10((edit_distance + 1)/(2*length(seqan::source(gapsRead))))); // +1 pseusocount
 }
 
+/*! Maps a single sequence (read) to a reference (ref).
+ * This function takes a read sequence as input (`read`) and computes two
+ * pairwise alignments against the reference (`ref`). One with the original
+ * sequence and one with the reverse complemented sequence. The better alignment
+ * is chosen and stored in the two output parameters gapsRead/RefOut.
+ * @param gapsReadOut The outout parameter in which the gapped read sequence,
+ *                    representing the alignment to the ref, is stored.
+ * @param gapsRefOut  The outout parameter in which the gapped ref sequence,
+ *                    representing the alignment to the read, is stored.
+ * @param read        The read sequence to be alignmed.
+ * @param ref         The ref sequence to align `read` to.
+ */
 inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsReadOut,
                             seqan::Gaps<Dna5String, seqan::ArrayGaps> & gapsRefOut,
                             seqan::Dna5QString & read,
@@ -122,6 +141,15 @@ inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRea
     }
 }
 
+/*! Maps read pairs (in reads1 & reads2) to a reference (ref).
+ * This function takes two vectors of read sequences as input and expects those,
+ * to refer to read pairs (e.g. reads2[i] is the mate of reads1[i]). It stores
+ * the result of each mapped pair of reads in a `MappingObject` and returns a
+ * list of such.
+ * @param reads1 The read sequences of all "first-in-pair" reads.
+ * @param reads2 The read sequences of all "second-in-pair" reads.
+ * @param ref         The ref sequence to align the read sequences to.
+ */
 vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & reads1,
                                seqan::StringSet<seqan::Dna5QString> const & reads2,
                                seqan::Dna5String & ref)

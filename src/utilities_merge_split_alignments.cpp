@@ -1,7 +1,6 @@
 #include <iostream>
 #include <seqan/bam_io.h>
 
-#include <helper_functions.h>
 #include <merge_split_alignments.h>
 
 using namespace std;
