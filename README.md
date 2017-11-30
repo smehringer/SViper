@@ -64,7 +64,7 @@ This will output a file called `variants.vcf.polished.vcf` containing variants w
 
 There are several requirements for using the polishing:
 
-1. The vcf file must be a structural variant format (tags instead of sequences, e.g. <DEL>). ALso the INFO field must include the END tag, giving the end position of the variant, as well as the SVLEN tag in case of insertions.
+1. The vcf file must be a structural variant format (tags instead of sequences, e.g. `<DEL>`). ALso the INFO field must include the END tag, giving the end position of the variant, as well as the SVLEN tag in case of insertions.
 2. The bam files must be indexed.
 3. The reference sequence (FASTA) must be indexed.
 4. BEOFRE you call `evaluate_final_mapping` you must sort the bam file by name!
