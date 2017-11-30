@@ -101,5 +101,27 @@ There are several requirements for using the polishing:
                       x-50        x+50    y-50         y+50
             ~~~~
 
+### Utilities
+
+There are some utilities that come in handy when you want to look at specific variants and understand the substeps of polishing (or the preparation). You can make the utilities with `make`:
+
+~~~~
+~$ make utilities
+~~~~
+
+The executables can then be found in the `utilities` directory.
+
+Some short explanation for each:
+
+* `utilities_merge_split_alignments`
+    This little program will take a bam/sam file as first argument. It will then output a file called 'your-input-filename.merged.sam' which includes all reads but all supplementary alignments are now wither  merged to it's primary or discarded. **IMPORTANT: The input BAM file needs to be sorted by name!** This is especially useful if you want to look at the sviper-output-bam file in the IGV browser (the merging is done automatically when evaluating).
+
+* `utilities_get_supporting_reads`
+    This little program will take a bam/sam file as first argument and a vcf file as second (Note that it only reads the first variant because it is made for one variant only). It will then output each reads name and wether the read is supporting or not.
+
+* `utilities_compare_vcf`
+    This little program will take a vcf file as first argument and a TRUTH vcf file as second. This script is not debugged enough so you might run into errors. If so please report them to me and I will try to fix them as soon as possible.
+
+
 ### Contact
 If you have any questions don't hesitate to contact me: svenja.mehringer[AT]gmail.com
