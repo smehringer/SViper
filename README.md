@@ -40,19 +40,19 @@ You can look at all the input requirements by calling the sviper help page
 The usage of the whole polishing pipeline, needs a remapping step with a long read mapper of your choice, though.
 An example of using sviper is the following:
 
-#. Call sviper
+1. Call sviper
 ~~~~
 ~$ sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o example -g example.log
 ~~~~
 This will output a `example.fa` file, that contains all the polished sequences for recalling refined variants.
 
-#. Map polished sequences to reference
+2. Map polished sequences to reference
 ~~~~
 ~$ my-fav-mapper -input example.fa -r ref.fa
 ~~~~
 This will output a sam or bam file that serves as input for the third step.
 
-#. Evaluate the mapping and create a **polished VCF file**
+3. Evaluate the mapping and create a **polished VCF file**
 IMPORTANT: The bam/sam file must be sorted by name in order for the evaluation to work correctly!
 ~~~~
 ~$ samtools sort -n mapping-output.bam > mapping-output.sortedByName.bam
