@@ -53,8 +53,10 @@ This will output a `example.fa` file, that contains all the polished sequences f
 This will output a sam or bam file that serves as input for the third step.
 
 #. Evaluate the mapping and create a **polished VCF file**
+IMPORTANT: The bam/sam file must be sorted by name in order for the evaluation to work correctly!
 ~~~~
-~$ evaluate_final_mapping my-fav-mapper-output.bam variants.vcf
+~$ samtools sort -n mapping-output.bam > mapping-output.sortedByName.bam
+~$ evaluate_final_mapping mapping-output.sortedByName.bam variants.vcf
 ~~~~
 This will output a file called `variants.vcf.polished.vcf` containing variants with the same ID but refined break points or even failures if the variant was "polished away" (see Interpreting the output).
 
@@ -65,6 +67,7 @@ There are several requirements for using the polishing:
 #. The vcf file must be a structural variant format (tags instead of sequences, e.g. <DEL>). ALso the INFO field must include the END tag, giving the end position of the variant, as well as the SVLEN tag in case of insertions.
 #. The bam files must be indexed.
 #. The reference sequence (FASTA) must be indexed.
+#. BEOFRE you call `evaluate_final_mapping` you must sort the bam file by name!
 #. (Obvisoulsy, the bam files should correspond to the same individual/sample mapped to the given reference.)
 
 ### Input arguments:
@@ -99,4 +102,4 @@ There are several requirements for using the polishing:
             ~~~~
 
 ### Contact
-If you have any questions write me a mail: svenja.mehringer[AT]gmail.com
+If you have any questions don't hesitate to contact me: svenja.mehringer[AT]gmail.com
