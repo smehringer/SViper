@@ -236,7 +236,7 @@ void view_bam(std::vector<seqan::BamAlignmentRecord> & records,
             break;
 
         // check if read is in region since binning of BAM file might be off
-        if (record.beginPos + getAlignmentLengthInRef(record) < start)
+        if (record.beginPos + static_cast<int>(getAlignmentLengthInRef(record)) < start)
             continue;
 
         if (!hasFlagQCNoPass(record) && !hasFlagDuplicate(record) && // passes QC

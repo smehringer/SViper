@@ -46,18 +46,24 @@ unsigned get_read_begin_and_alter_cigar(BamAlignmentRecord & record)
 
 unsigned get_read_end_and_alter_cigar(BamAlignmentRecord & record)
 {
-    unsigned read_end_pos{length(record.seq) - 1};
+    int read_end_pos{static_cast<int>(length(record.seq)) - 1};
+
     if ((record.cigar[length(record.cigar) - 1]).operation == 'H') // hard clipping
     {
         read_end_pos -= (record.cigar[length(record.cigar) - 1]).count;
         erase(record.cigar, length(record.cigar) - 1);
     }
+
     if ((record.cigar[length(record.cigar) - 1]).operation == 'S') // soft clipping
     {
         read_end_pos -= (record.cigar[length(record.cigar) - 1]).count;
         erase(record.cigar, length(record.cigar) - 1);
     }
-    return read_end_pos;
+
+    if (read_end_pos < 0) // this should never happen, but just to be sure
+        return 0;
+
+    return static_cast<unsigned>(read_end_pos);
 }
 
 void truncate_cigar_right(BamAlignmentRecord & record, int until)
