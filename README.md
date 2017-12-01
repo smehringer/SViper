@@ -1,7 +1,7 @@
 SViper
-=========
+=======
 
-This pipeline polishes deletions and isnertions called on long read data (ONT) by applying [Pilon](https://github.com/broadinstitute/pilon).
+This pipeline polishes deletions and isnertions called on long read data (ONT) using short exact reads for refinement.
 
 Installation
 ------------
@@ -9,8 +9,8 @@ Installation
 For installation, simply clone the repo and use make to compile any utilities.
 
 ~~~~
-~$ git clone git@lsource2.decode.is:svenjam/NanoSweep.git
-~$ cd NanoSweep
+~$ git clone git@lsource2.decode.is:svenjam/SViper.git
+~$ cd SViper
 ~$ make
 ~~~~
 
@@ -19,140 +19,109 @@ Note: You need a compiler that supports c++14.
 Dependencies
 ------------
 
-The pipeline depends on the following (unix) programs:
+Currently, the polishing pipeline lacks a convinient long read pairwise alignment function. Therefore, the main program outputs a fasta file that needs to be mapped by a long read mapper of your choice.
 
-* _grep_, _sed_, _awk_, _cat_, _cut_, _sort_ and _shuf_. Well, and _echo_.
-* _samtools_ (1.5, using htslib 1.5)
-* _bwa (index/mem)_
-* A long read mapper of your choice. Recommended: _minimap_
-* _Pilon_ (A released jar file is in this repo ready to use)
+* Linux operating system
+* Code so far only tested for gcc 5.4.0
+* C++14 support
+* A long read mapper of your choice. Recommended: _minimap2_
 
 - - - -
 
-Using NanoSweep
+Using SViper
 ---------------
 
-This respository contains several executables that can be used to either sweep a whole sample (_sweep_sample.sh_), a single variant (_sweep_variant.sh_) or even a single sequence (_sweep_sequence.sh_).
-
-For every (sweep)script you need to provide a config file.
-
-### The config file
-
-You don't need to copy the text below but just execute _sweep\_variant.sh_ without any arguments and a sample config file is dropped into the current directory.
+You can look at all the input requirements by calling the sviper help page
 
 ~~~~
-~$ ./sweep_sample
-[ERROR - sweep_sample.sh] Config File must be provided as first argument!
-I just dropped a sample config file 'polishing.config' in the  current directory for you to alter.
+~$ sviper -h
 ~~~~
 
+The usage of the whole polishing pipeline, needs a remapping step with a long read mapper of your choice, though.
+An example of using sviper is the following:
 
-```bash
+1. Call sviper
+~~~~
+~$ sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o example -g example.log
+~~~~
+This will output a `example.fa` file, that contains all the polished sequences for recalling refined variants.
 
-# Polishing Pipeline Config File
-# ==============================
+2. Map polished sequences to reference
+~~~~
+~$ my-fav-mapper -input example.fa -r ref.fa
+~~~~
+This will output a sam or bam file that serves as input for the third step.
 
-# Input parameters for polishing
-# -------------------------------
-export OUTPUT_DIR="/path/to/directory/toStore/the/output"
-export REFERENCE="/path/to/reference/genome/file.fa"
-export ONT_BAM_FILE="/path/to/long/reads/that/shall/be/polished/data.bam"
-export BAMFILE_ILLUMINA="/path/to/accurate/short/read/to/be/used/for/polishiing/data.bam"
-export VCF_FILE="/path/to/variants/or/regions/you/want/to/have/polished/data.vcf"
-export REGION_AROUND_VARIANT=400 #default
-export LOG=polishing.log #default log file name
+3. Evaluate the mapping and create a **polished VCF file**
+IMPORTANT: The bam/sam file must be sorted by name in order for the evaluation to work correctly!
+~~~~
+~$ samtools sort -n mapping-output.bam > mapping-output.sortedByName.bam
+~$ evaluate_final_mapping mapping-output.sortedByName.bam variants.vcf
+~~~~
+This will output a file called `variants.vcf.polished.vcf` containing variants with the same ID but refined break points or even failures if the variant was "polished away" (see Interpreting the output).
 
-# Third party programs
-# -------------------------------
-# if you want to use another mapper please adjust the mapper call
-# WIHOUT changing the variables MAPPER_IN_READS and MAPPER_OUT but
-# by placing them and the appropiate places.
-export MAPPER_CALL="/odinn/tmp/svenjam/programs/minimap2-2.3_x64-linux/minimap2 -ax map-ont /odinn/tmp/svenjam/hg38.mmi $MAPPER_IN_READS > $MAPPER_OUT"
-export PILON_EXECUTABLE="$EXEC_DIR/pilon-1.22.jar"
+### IMPORTANT
 
-# DO NOT TOUCH
-# -------------------------------
-# The following preparations are neccessary once, regardless if executing
-# sweep_sample/variant/sequence so the changes are made here for preparation
-if [ ! -d "$OUTPUT_DIR" ]
-    then
-    mkdir $OUTPUT_DIR
-fi
+There are several requirements for using the polishing:
 
-export BAMFILE_ILLUMINA_HEADER="$OUTPUT_DIR/BAMFILE_ILLUMINA.header"
-samtools view -H "$BAMFILE_ILLUMINA" -o "$BAMFILE_ILLUMINA_HEADER"
+1. The vcf file must be a structural variant format (tags instead of sequences, e.g. `<DEL>`). ALso the INFO field must include the END tag, giving the end position of the variant, as well as the SVLEN tag in case of insertions.
+2. The bam files must be indexed.
+3. The reference sequence (FASTA) must be indexed.
+4. BEOFRE you call `evaluate_final_mapping` you must sort the bam file by name!
+5. (Obvisoulsy, the bam files should correspond to the same individual/sample mapped to the given reference.)
 
-export BAMFILE_ONT_HEADER="$OUTPUT_DIR/BAMFILE_ONT.header"
-samtools view -H "$ONT_BAM_FILE" -o "$BAMFILE_ONT_HEADER"
+### Input arguments:
 
-```
-
-Simply update the variables to point to your data files.
-
-> IMPORTANT: Use absolute paths!
-
-Some Explanations:
-
-* VCF_FILE
+* `-c, --candidate-vcf` The candidate vcf file
     This file contains all the variants that will be polished in the run.
-    If you want to accelarate polishing on a large vcf file, you might want to split the file into several small ones and create a config fie for each.
+    If you want to accelarate polishing on a large vcf file, you might want to split the file into several small ones and call sviper each one seperately.
 
-* REGION_AROUND_VARIANT
-    This is a parameter that fixes the size of the flanking area (in bp's, e.g. 50) around each breakpoint (start/end) of a variant.
+* `-s, --short-read-bam` (BAM_FILE)
+          The indexed bam file containing short used for polishing at variant sites.
 
-    ```
-                    start x             end y
-    ------------------|------------------|----------------
-               !------------!      !------------!
-              x-50        x+50    y-50         y+50
-    ```
+* `-l, --long-read-bam` (BAM_FILE)
+          The indexed bam file containing long reads to be polished at variant sites.
 
-* MAPPER_CALL
-    This variable is very sensible to changes so touch it with care.
-    The polishing pipeline currently requires a remapping of the polished consensus sequence to the reference (A simple pairwise alignment does not work well with standard DP). Therefore a long read mapper is needed after all consensus sequences are collected in a file called _final-all.fa_.
-    Change the mapper call string to any mapper of your choice and adjust the commandline arguments **without** changing the variables _$MAPPER_IN_READS_ and _$MAPPER_OUT_. Thos will be replaced in the script such that the mapper gets the correct files for mapping.
-    For example if you want to use NGMLR you might want to change the call to:
+* `-r, --reference` (FA_FILE)
+          The indexed (fai) reference file.
 
-    ~~~~
-    export MAPPER_CALL="/odinn/tmp/svenjam/programs/ngmlr-0.2.6/ngmlr -r $REFERENCE -x ont -q $MAPPER_IN_READS -o $MAPPER_OUT"
-    ~~~~
+* `-o, --output-fa` (FA_FILE)
+          A filename for the output file. NOTE: The current output is a fasta file, that contains the polished sequences for each variant. Since the final realignment is not part of this tool yet,The user must map the fasta file with a mapper of his choice (e.g. minimap2) and then call evaluate_final_alignment.
 
-..and don't touch the DO NOT TOUCH part. :-)
+* `-g, --log-file` (TXT_FILE)
+          A filename for the log file. Default: polishing.log.
 
-### Sweep A Genome
+* `-k, --flanking-region` (INT)
+          The flanking region in bp's around a breakpoint to be considered for polishing In range [50..1000]. Default: 400.
 
-To polish a whole genome you mainly need to adjust the config file and give it to the script _sweep\_sample.sh_ as a first argument.
+            ~~~~
+                            start x             end y
+            ------------------|------------------|----------------
+                       !------------!      !------------!
+                      x-50        x+50    y-50         y+50
+            ~~~~
 
-~~~~
-~$ ./sweep_sample polishing.config
-~~~~
+### Utilities
 
-This will automatically check the programs needed and launch _sweep\_variant.sh_ for each line in the vcf file (VCF_FILE in config).
-
-You will see the progress of the sweeping on your terminal. There is no need to pipe the output because it will also appear (in more detail) in the logfile (LOG_FILE in config) in your output directory (OUTPUT_DIR in config).
-
-### Sweep A Variant
-
-You can also sweep a single variant by giving the script _sweep\_variant.sh_ the config file, as well as the chromosome/reference name and the start position of your variant of choice. The script will find the corresponding variant in the vcf file (VCF_FILE in config) with the help of grep.
+There are some utilities that come in handy when you want to look at specific variants and understand the substeps of polishing (or the preparation). You can make the utilities with `make`:
 
 ~~~~
-~$ ./sweep_variant polishing.config chr1 993459
+~$ make utilities
 ~~~~
 
-Note: Of course you can also create a vcf file of only one variant and run _sweep\_sample.sh_.
+The executables can then be found in the `utilities` directory.
 
-### Sweep A Sequence
+Some short explanation for each:
 
-In case you want to only polish a specific sequence for another application, you can use the _sweep\_sequence.sh_ script.
+* `utilities_merge_split_alignments`
+    This little program will take a bam/sam file as first argument. It will then output a file called 'your-input-filename.merged.sam' which includes all reads but all supplementary alignments are now wither  merged to it's primary or discarded. **IMPORTANT: The input BAM file needs to be sorted by name!** This is especially useful if you want to look at the sviper-output-bam file in the IGV browser (the merging is done automatically when evaluating).
 
-This a needs a little more prior work though: The script expects a sequence to polish in fasta format and two files with illumina paired reads in fasta/fastq format that you wish to polish with. For ecample you could extract your sequence and reads of choice using _samtools view_:
+* `utilities_get_supporting_reads`
+    This little program will take a bam/sam file as first argument and a vcf file as second (Note that it only reads the first variant because it is made for one variant only). It will then output each reads name and wether the read is supporting or not.
 
-~~~~
-~$ samtools view myAssemblySequence.fa "seq:100-900" > sequence.fa
-~$ samtools view -hb myBamFile.bm "ref:5500-6300" | \
-samtools fastq - -1 illumina1.fq -2 illumina2.fq
-~$ ./sweep_sequence polishing.config sequence.fa illumina1.fq illumina2.fq
-~~~~
+* `utilities_compare_vcf`
+    This little program will take a vcf file as first argument and a TRUTH vcf file as second. This script is not debugged enough so you might run into errors. If so please report them to me and I will try to fix them as soon as possible.
+
 
 ### Contact
-If you have any questions write me a mail: svenja.mehringer[AT]gmail.com
+If you have any questions don't hesitate to contact me: svenja.mehringer[AT]gmail.com

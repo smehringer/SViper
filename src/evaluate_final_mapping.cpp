@@ -8,7 +8,10 @@
 #include <seqan/align.h>
 #include <seqan/graph_msa.h>
 
-#include <helper_functions.h>
+#include <basics.h>
+#include <variant.h>
+#include <merge_split_alignments.h>
+#include <evaluate_final_mapping.h>
 
 using namespace std;
 using namespace seqan;
@@ -63,13 +66,17 @@ int main(int argc, char ** argv)
     // Merge supplementary alignments before evaluating
     // -------------------------------------------------------------------------
 
+    BamHeader header;
+    readHeader(header, bamfileIn);
+
     // empty file must be check here otherwise the first read record will fail
     if (atEnd(bamfileIn))
         return 0;
 
     BamAlignmentRecord record;
-    vector<BamAlignmentRecord> record_group;
+    vector<BamAlignmentRecord> record_group; // will contain all records with the same read name
 
+    // BAM file must be sorted by name
     while (!atEnd(bamfileIn))
     {
         readRecord(record, bamfileIn);
@@ -77,7 +84,7 @@ int main(int argc, char ** argv)
         if (!record_group.empty() &&
             (record_group[record_group.size() - 1]).qName != record.qName)
         {
-            BamAlignmentRecord merged_record = process_record_group(record_group);
+            BamAlignmentRecord merged_record = merge_record_group(record_group);
 
             // Evaluate alignment and ouput new polished variant
             // -----------------------------------------------------------------
@@ -92,9 +99,8 @@ int main(int argc, char ** argv)
             record_group.push_back(record);
         }
     }
-
     //process last group
-    BamAlignmentRecord merged_record = process_record_group(record_group);
+    BamAlignmentRecord merged_record = merge_record_group(record_group);
     Variant polished_variant = evaluate_alignment(merged_record, variant_map);
     polished_variant.write(vcf_file_out);
 
