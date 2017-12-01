@@ -48,8 +48,8 @@ $(UTILITYDIR)/%: $(SRCDIR)/%.cpp
 	$(CXX) $(CXXFLAGS) $(LDLIBS) -o $@ $<
 
 clean:
-	rm sviper
-	rm evaluate_final_mapping
+	rm -f sviper
+	rm -f evaluate_final_mapping
 	@echo Cleaning executables in utilities
 	$(shell find utilities -type f -regex '^[^.]+' -delete)
 
