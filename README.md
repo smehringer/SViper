@@ -9,7 +9,7 @@ Installation
 For installation, simply clone the repo and use make to compile any utilities.
 
 ~~~~
-~$ git clone git@lsource2.decode.is:svenjam/SViper.git
+~$ git clone git@github.com:smehringer/SViper.git
 ~$ cd SViper
 ~$ make
 ~~~~
