@@ -23,7 +23,7 @@ bool open_file_success(file_type & file, const char * name)
 {
     if (!seqan::open(file, name))
     {
-        std::cerr << "ERROR: Could not open file " << name << std::endl;
+        std::cerr << "[ ERROR ]: Could not open file " << name << std::endl;
         return false;
     }
     return true;
@@ -203,20 +203,20 @@ void view_bam(std::vector<seqan::BamAlignmentRecord> & records,
     // get reference contig id
     if (!seqan::getIdByName(rID, seqan::contigNamesCache(seqan::context(bam_file)), ref_name))
     {
-        std::cerr << "[ERROR]: view_bam - Reference sequence named "
+        std::cerr << "-- [WARNING]: view_bam - Reference sequence named "
                   << ref_name << " is not present in bam file." << std::endl;
         return;
     }
 
     if (!seqan::jumpToRegion(bam_file, hasAlignments, rID, start, start+1, bam_index))
     {
-        std::cerr << "[ERROR]: view_bam - Could not jump to " << start << std::endl;
+        std::cerr << "-- [WARNING]: view_bam - Could not jump to " << start << std::endl;
         return;
     }
 
     if (!hasAlignments)
     {
-        std::cerr << "[ERROR]: view_bam - No alignments for reference region ["
+        std::cerr << "-- [WARNING]: view_bam - No alignments for reference region ["
                   << start << "-" << end << "]." << std::endl;
         return;
     }
