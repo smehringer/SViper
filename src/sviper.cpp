@@ -224,9 +224,9 @@ int main(int argc, char const ** argv)
         // ---------------------------------------------------------------------
         std::vector<seqan::BamAlignmentRecord> ont_reads;
         // extract overlapping the start breakpoint +-50 bp's
-        view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, max(0, var.ref_pos - 50), var.ref_pos + 50, true);
+        view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, max(0, var.ref_pos - 50), var.ref_pos + 50);
         // extract overlapping the end breakpoint +-50 bp's
-        view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, max(0, var.ref_pos_end - 50), var.ref_pos_end + 50, true);
+        view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, max(0, var.ref_pos_end - 50), var.ref_pos_end + 50);
 
         if (ont_reads.size() == 0)
         {
@@ -353,15 +353,15 @@ int main(int argc, char const ** argv)
             {
                 // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
                 unsigned e = min(ref_length, var.ref_pos + options.flanking_region);
-                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, e, false);
+                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, e);
                 // and right of the end of the variant [end-flanking_region, end+flanking_region]
                 unsigned s = max(0, var.ref_pos_end - options.flanking_region);
-                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, s, ref_region_end, false);
+                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, s, ref_region_end);
             }
             else
             {
                 // extract reads left of the start of the variant [start-flanking_region, start]
-                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, ref_region_end, false);
+                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, ref_region_end);
             }
 
             if (short_reads.size() < 20)
