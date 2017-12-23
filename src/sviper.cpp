@@ -46,7 +46,9 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 
     addOption(parser, seqan::ArgParseOption(
         "s", "short-read-bam",
-        "The indexed bam file containing short used for polishing at variant sites.",
+        "The indexed bam file containing short used for polishing at variant sites."
+        "If no short reads are given, only the consensus sequence per location is in the output."
+        "Note that this has a negative impact on the polishing performance.",
         seqan::ArgParseArgument::INPUT_FILE, "BAM_FILE"));
 
     addOption(parser, seqan::ArgParseOption(
@@ -87,7 +89,6 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 
     setRequired(parser, "c");
     setRequired(parser, "l");
-    setRequired(parser, "s");
     setRequired(parser, "r");
 
     setMinValue(parser, "k", "50");
@@ -150,9 +151,11 @@ int main(int argc, char const ** argv)
     if (!open_file_success(input_vcf, options.candidate_file_name.c_str()) ||
         /*!open_file_success(output_vcf, options.out_fa_file_name.c_str()) || */ // no direct vcf output available yet
         !open_file_success(long_read_bam, options.long_read_file_name.c_str()) ||
-        !open_file_success(short_read_bam, options.short_read_file_name.c_str()) ||
         !open_file_success(long_read_bai, (options.long_read_file_name + ".bai").c_str()) ||
-        !open_file_success(short_read_bai, (options.short_read_file_name + ".bai").c_str()) ||
+        (!options.short_read_file_name.empty() &&
+        !open_file_success(short_read_bam, options.short_read_file_name.c_str())) ||
+        (!options.short_read_file_name.empty() &&
+        !open_file_success(short_read_bai, (options.short_read_file_name + ".bai").c_str())) ||
         !open_file_success(faiIndex, options.reference_file_name.c_str()) ||
         !open_file_success(final_fa, (options.out_fa_file_name + ".fa").c_str()) ||
         !open_file_success(log_file, options.log_file_name.c_str()))
@@ -167,7 +170,10 @@ int main(int argc, char const ** argv)
     // This is neccessary for the bam file context (containing reference ids and
     // more) is correctly initialized.
     readHeader(long_read_header, long_read_bam);
-    readHeader(short_read_header, short_read_bam);
+    if (!options.short_read_file_name.empty())
+    {
+        readHeader(short_read_header, short_read_bam);
+    }
 
     // Scip VCF header
     // -------------------------------------------------------------------------
@@ -311,46 +317,6 @@ int main(int argc, char const ** argv)
 
         log_file << "--- Built a consensus with a MSA of length " << length(cns) << "." << endl;
 
-        // Extract short reads in region
-        // ---------------------------------------------------------------------
-        StringSet<Dna5QString> short_reads_1; // reads (first in pair)
-        StringSet<Dna5QString> short_reads_2; // mates (second in pair)
-
-        vector<BamAlignmentRecord> short_reads;
-        // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-reagion,
-        // then ectract reads for each break point seperately.
-        if (ref_region_end - ref_region_start > options.flanking_region * 2 + 150) // 150 = illumina length
-        {
-            // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
-            unsigned e = min(ref_length, var.ref_pos + options.flanking_region);
-            view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, e, false);
-            // and right of the end of the variant [end-flanking_region, end+flanking_region]
-            unsigned s = max(0, var.ref_pos_end - options.flanking_region);
-            view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, s, ref_region_end, false);
-        }
-        else
-        {
-            // extract reads left of the start of the variant [start-flanking_region, start]
-            view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, ref_region_end, false);
-        }
-
-        if (short_reads.size() < 20)
-        {
-            std::cout << "[ ERROR3 ] Not enough short reads (only " << short_reads.size()
-                      << ") for variant of type " << var.alt_seq
-                      << " in region " << var.ref_chrom << ":" << ref_region_start
-                      << "-" << ref_region_end << std::endl;
-            continue;
-        }
-
-        records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, short_read_bai);
-
-        if (length(short_reads_1) > 250) // ~400 reads -> 60x coverage is enough
-            subsample(short_reads_1, short_reads_2, 250); // sub sample short reads to 250 pairs
-
-        log_file << "--- Extracted " << short_reads.size() << " short reads that come in "
-                 << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
-
         // Flank consensus sequence
         // ---------------------------------------------------------------------
         // Before polishing, append a reference flank of length 150 (illumina
@@ -361,25 +327,77 @@ int main(int argc, char const ** argv)
                                                          ref_fai_idx, ref_length,
                                                          ref_region_start, ref_region_end, 150);
 
-        // Polish flanked consensus sequence with short reads
+        // Polish if short read is available
         // ---------------------------------------------------------------------
-        SViperConfig config{}; // default
-        config.verbose = options.verbose;
-        compute_baseQ_stats(config, short_reads_1, short_reads_2); //TODO:: return wualities and assign to cinfig outside
+        Dna5String polished_ref;
 
-        log_file << "--- Short read base qualities: avg=" << config.baseQ_mean
-                 << " stdev=" << config.baseQ_std << "." << std::endl;
+        if (!options.short_read_file_name.empty())
+        {
+            // Extract short reads in region
+            // ---------------------------------------------------------------------
+            StringSet<Dna5QString> short_reads_1; // reads (first in pair)
+            StringSet<Dna5QString> short_reads_2; // mates (second in pair)
 
-        Dna5String polished_ref = polish_to_perfection(short_reads_1,
-                                                       short_reads_2,
-                                                       flanked_consensus, config);
+            vector<BamAlignmentRecord> short_reads;
+            // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-reagion,
+            // then ectract reads for each break point seperately.
+            if (ref_region_end - ref_region_start > options.flanking_region * 2 + 150) // 150 = illumina length
+            {
+                // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
+                unsigned e = min(ref_length, var.ref_pos + options.flanking_region);
+                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, e, false);
+                // and right of the end of the variant [end-flanking_region, end+flanking_region]
+                unsigned s = max(0, var.ref_pos_end - options.flanking_region);
+                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, s, ref_region_end, false);
+            }
+            else
+            {
+                // extract reads left of the start of the variant [start-flanking_region, start]
+                view_bam(short_reads, short_read_bam, short_read_bai, var.ref_chrom, ref_region_start, ref_region_end, false);
+            }
 
-        log_file << "DONE POLISHING: Total of "
-                 << config.substituted_bases << " substituted, "
-                 << config.deleted_bases     << " deleted and "
-                 << config.inserted_bases    << " inserted bases. "
-                 << config.rounds            << " rounds."
-                 << std::endl << std::endl;
+            if (short_reads.size() < 20)
+            {
+                std::cout << "[ ERROR3 ] Not enough short reads (only " << short_reads.size()
+                          << ") for variant of type " << var.alt_seq
+                          << " in region " << var.ref_chrom << ":" << ref_region_start
+                          << "-" << ref_region_end << std::endl;
+                continue;
+            }
+
+            records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, short_read_bai);
+
+            if (length(short_reads_1) > 250) // ~400 reads -> 60x coverage is enough
+                subsample(short_reads_1, short_reads_2, 250); // sub sample short reads to 250 pairs
+
+            log_file << "--- Extracted " << short_reads.size() << " short reads that come in "
+                     << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
+
+            // Polish flanked consensus sequence with short reads
+            // ---------------------------------------------------------------------
+            SViperConfig config{}; // default
+            config.verbose = options.verbose;
+            compute_baseQ_stats(config, short_reads_1, short_reads_2); //TODO:: return wualities and assign to cinfig outside
+
+            log_file << "--- Short read base qualities: avg=" << config.baseQ_mean
+                     << " stdev=" << config.baseQ_std << "." << std::endl;
+
+            polished_ref = polish_to_perfection(short_reads_1,
+                                                short_reads_2,
+                                                flanked_consensus, config);
+
+            log_file << "DONE POLISHING: Total of "
+                     << config.substituted_bases << " substituted, "
+                     << config.deleted_bases     << " deleted and "
+                     << config.inserted_bases    << " inserted bases. "
+                     << config.rounds            << " rounds."
+                     << std::endl << std::endl;
+
+        }
+        else
+        {
+            polished_ref = flanked_consensus;
+        }
 
         // Flank polished sequence
         // ---------------------------------------------------------------------
