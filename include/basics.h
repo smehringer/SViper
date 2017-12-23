@@ -204,8 +204,8 @@ void view_bam(std::vector<seqan::BamAlignmentRecord> & records,
     // seqan jummpToRegion jumps to a bin containing the start position
     // since long reads often start way before this, we don?t want to miss those
     int start_reading = start;
-    if (long_reads)
-        start_reading = std::min(0, start - 10000);
+    //if (long_reads)
+    //    start_reading = std::min(0, start - 10000);
 
     // get reference contig id
     if (!seqan::getIdByName(rID, seqan::contigNamesCache(seqan::context(bam_file)), ref_name))
