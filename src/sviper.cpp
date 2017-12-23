@@ -30,6 +30,7 @@ struct CmdOptions
     string out_fa_file_name;
     string reference_file_name;
     string log_file_name;
+    bool no_flanking_reference;
 };
 
 ArgumentParser::ParseResult
@@ -83,6 +84,12 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
         "v", "verbose",
         "Turn on detailed information about the process."));
 
+    addOption(parser, seqan::ArgParseOption(
+        "", "no-flanking-reference",
+        "Per default, the (polished) consensus sequence is flanked by 5000bp "
+        "taken from the reference sequence to simulate a long read and ensure "
+        "a correct mapping in the post processing. This flank prevents this."));
+
     // addOption(parser, seqan::ArgParseOption(
     //     "vv", "very-verbose",
     //     "Turn on detailed information about the process and write out intermediate results."));
@@ -113,6 +120,7 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     getOptionValue(options.log_file_name, parser, "log-file");
     getOptionValue(options.flanking_region, parser, "flanking-region");
     options.verbose = isSet(parser, "verbose");
+    options.no_flanking_reference = isSet(parser, "no-flanking-reference");
     // options.veryVerbose = isSet(parser, "very-verbose");
 
     //if (options.veryVerbose)
@@ -402,12 +410,20 @@ int main(int argc, char const ** argv)
         // Flank polished sequence
         // ---------------------------------------------------------------------
         // Append large reference flank for better mapping results of long reads.
-        Dna5String final_sequence = append_ref_flanks(polished_ref,
-                                                      faiIndex, ref_fai_idx,
-                                                      ref_length,
-                                                      ref_region_start - 150,
-                                                      ref_region_end + 150,
-                                                      4850);
+        Dna5String final_sequence;
+        if (!options.no_flanking_reference)
+        {
+            final_sequence = append_ref_flanks(polished_ref,
+                                               faiIndex, ref_fai_idx,
+                                               ref_length,
+                                               ref_region_start - 150,
+                                               ref_region_end + 150,
+                                               4850);
+        }
+        else
+        {
+            final_sequence = polished_ref;
+        }
 
         // Print polished and flanked sequence to file
         // ---------------------------------------------------------------------
