@@ -12,6 +12,7 @@
 #include <seqan/graph_msa.h>
 
 #include <mateHunter.h>
+#include <config.h>
 
 /*! Generic function for conveniently testing successful file access.
  * @param file The input file object.
@@ -205,26 +206,26 @@ void view_bam(std::vector<seqan::BamAlignmentRecord> & records,
     // since long reads often start way before this, we don?t want to miss those
     int start_reading = start;
     if (long_reads)
-        start_reading = std::min(0, start - 10000);
+        start_reading = std::max(0, start - 10000);
 
     // get reference contig id
     if (!seqan::getIdByName(rID, seqan::contigNamesCache(seqan::context(bam_file)), ref_name))
     {
-        std::cerr << "[ERROR]: view_bam - Reference sequence named "
+        log_file << "[ERROR]: view_bam - Reference sequence named "
                   << ref_name << " is not present in bam file." << std::endl;
         return;
     }
 
     if (!seqan::jumpToRegion(bam_file, hasAlignments, rID, start_reading, start_reading+1, bam_index))
     {
-        std::cerr << "[ERROR]: view_bam - Could not jump to " << start_reading << std::endl;
+        log_file << "[ERROR]: view_bam - Could not jump to " << start_reading << std::endl;
         return;
     }
 
     if (!hasAlignments)
     {
-        std::cerr << "[ERROR]: view_bam - No alignments for reference region ["
-                  << start_reading << "-" << end << "]." << std::endl;
+        log_file << "[ERROR]: view_bam - No alignments for reference region ["
+                 << start_reading << "-" << end << "]." << std::endl;
         return;
     }
 

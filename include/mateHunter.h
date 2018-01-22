@@ -7,6 +7,8 @@
 #include <seqan/bam_io.h>
 #include <seqan/sequence.h>
 
+#include <config.h>
+
 using namespace std;
 using namespace seqan;
 
@@ -22,17 +24,17 @@ BamAlignmentRecord mateHunt(BamAlignmentRecord const & record,
     bool hasAlignments = false;
     if (!jumpToRegion(bam_file, hasAlignments, record.rNextId, record.pNext, record.pNext+1, bam_index))
     {
-        std::cerr << "[ERROR] mateHunt - Could not jump to region "
-                  << record.rNextId << ":" << record.pNext
-                  << " to find a records mate." << std::endl;
+        log_file << "[ERROR] mateHunt - Could not jump to region "
+                 << record.rNextId << ":" << record.pNext
+                 << " to find a records mate." << std::endl;
         return mate;
     }
 
     if (!hasAlignments)
     {
-        std::cerr << "[ERROR] mateHunt - Could not find any reads in region "
-                  << record.rNextId << ":" << record.pNext
-                  << " to find a records mate." << std::endl;
+        log_file << "[ERROR] mateHunt - Could not find any reads in region "
+                 << record.rNextId << ":" << record.pNext
+                 << " to find a records mate." << std::endl;
         return mate;
     }
 

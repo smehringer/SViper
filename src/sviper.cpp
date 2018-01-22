@@ -145,7 +145,6 @@ int main(int argc, char const ** argv)
     BamIndex<Bai> long_read_bai;  // The bam index to the long read bam file
     BamIndex<Bai> short_read_bai; // The bam index to the short read bam file
     SeqFileOut final_fa;          // The current output fasta file to be mapped
-    ofstream log_file;            // The file to log all information
 
     if (!open_file_success(input_vcf, options.candidate_file_name.c_str()) ||
         /*!open_file_success(output_vcf, options.out_fa_file_name.c_str()) || */ // no direct vcf output available yet
@@ -159,6 +158,9 @@ int main(int argc, char const ** argv)
         return 1;
 
     std::cout << "======================================================================" << std::endl
+              << "START polishing variants in of file " << options.candidate_file_name << std::endl
+              << "======================================================================" << std::endl;
+    log_file  << "======================================================================" << std::endl
               << "START polishing variants in of file " << options.candidate_file_name << std::endl
               << "======================================================================" << std::endl;
 
@@ -183,32 +185,33 @@ int main(int argc, char const ** argv)
 
         if (var.alt_seq != "<DEL>" && var.alt_seq != "<INS>")
         {
-            std::cout << "[ SKIP ] Variant " << var.ref_chrom << ":"
+            std::cout << "[ SKIP ] Variant " << var.id << " at " << var.ref_chrom << ":"
                       << var.ref_pos << " of type " << var.alt_seq
-                      << " is currently not supported." << std::endl;
-            log_file << "----------------------------------------------------------------------" << std::endl
-                     << " SKIP Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
-                     << "----------------------------------------------------------------------" << std::endl;
+                      << " because this type is currently not supported." << std::endl;
+            log_file  << "----------------------------------------------------------------------" << std::endl
+                      << " SKIP Variant " << var.id << " at " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
+                      << "----------------------------------------------------------------------" << std::endl;
             continue;
         }
         if (var.sv_length > 1000000)
         {
-            std::cout << "[ SKIP ] Variant " << var.ref_chrom << ":"
+            std::cout << "[ SKIP ] Variant " << var.id << " at " << var.ref_chrom << ":"
                       << var.ref_pos << " of type " << var.alt_seq
                       << " of length " << var.sv_length << " because it is too long." << std::endl;
-            log_file << "----------------------------------------------------------------------" << std::endl
-                     << " SKIP too long Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
-                     << "----------------------------------------------------------------------" << std::endl;
+            log_file  << "----------------------------------------------------------------------" << std::endl
+                      << " SKIP too long Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
+                      << "----------------------------------------------------------------------" << std::endl;
             continue;
         }
 
         log_file << "----------------------------------------------------------------------" << std::endl
-                 << " PROCESS Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
+                 << " PROCESS Variant " << var.id << " at " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
                  << "----------------------------------------------------------------------" << std::endl;
 
         // Extract long reads
         // ---------------------------------------------------------------------
         std::vector<seqan::BamAlignmentRecord> ont_reads;
+
         // extract overlapping the start breakpoint +-50 bp's
         view_bam(ont_reads, long_read_bam, long_read_bai, var.ref_chrom, max(0, var.ref_pos - 50), var.ref_pos + 50, true);
         // extract overlapping the end breakpoint +-50 bp's
@@ -216,11 +219,16 @@ int main(int argc, char const ** argv)
 
         if (ont_reads.size() == 0)
         {
-            log_file << "[ ERROR1 ] No long reads in reference region "
-                     << var.ref_chrom << ":" << max(0, var.ref_pos - 50) << "-"
-                     << var.ref_pos + 50 << " or "
-                     << var.ref_chrom << ":" << max(0, var.ref_pos_end - 50) << "-"
-                     << var.ref_pos_end + 50 << "or " << std::endl;
+            log_file  << "[ ERROR1 ] No long reads in reference region "
+                      << var.ref_chrom << ":" << max(0, var.ref_pos - 50) << "-"
+                      << var.ref_pos + 50 << " or "
+                      << var.ref_chrom << ":" << max(0, var.ref_pos_end - 50) << "-"
+                      << var.ref_pos_end + 50 << "or " << std::endl;
+            std::cout << "[ ERROR1 ] No long reads in reference region "
+                      << var.ref_chrom << ":" << max(0, var.ref_pos - 50) << "-"
+                      << var.ref_pos + 50 << " or "
+                      << var.ref_chrom << ":" << max(0, var.ref_pos_end - 50) << "-"
+                      << var.ref_pos_end + 50 << "or " << std::endl;
             continue;
         }
 
@@ -401,7 +409,7 @@ int main(int argc, char const ** argv)
         writeRecord(final_fa, read_identifier, final_sequence);
 
         auto end = std::chrono::high_resolution_clock::now();
-        std::cout << "[ SUCCESS ] Polished variant " << var.ref_chrom << ":"
+        std::cout << "[ SUCCESS ] Polished variant " << var.id << " at " << var.ref_chrom << ":"
                   << var.ref_pos << "\t" << var.alt_seq << "\t[ "
                   << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
                   << std::endl;
@@ -409,6 +417,9 @@ int main(int argc, char const ** argv)
     while (getline(input_vcf, line));
 
     std::cout << "======================================================================" << std::endl
+              << "                                 DONE"  << std::endl
+              << "======================================================================" << std::endl;
+    log_file  << "======================================================================" << std::endl
               << "                                 DONE"  << std::endl
               << "======================================================================" << std::endl;
 

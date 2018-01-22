@@ -3,6 +3,7 @@
 #include <iostream>
 #include <seqan/bam_io.h>
 
+#include <config.h>
 #include <basics.h>
 
 using namespace seqan;
@@ -355,10 +356,12 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
 
         if (length(prim_record.seq) != compute_fragment_length(prim_record.cigar))
         { // screwing with cigar was not successfull. Do not replace final_record
-            cerr << "[ERROR] CIGAR and sequence length don't match: "
-                 << length(prim_record.seq) << "(seq length) != "
-                 << compute_fragment_length(prim_record.cigar)
-                 << "(cigar length). Do not use merged record." << endl;
+            log_file << "[WARNING] CIGAR and sequence length don't match: "
+                     << length(prim_record.seq) << "(seq length) != "
+                     << compute_fragment_length(prim_record.cigar)
+                     << "(cigar length). Do not use merged record with name "
+                     << prim_record.qName
+                     << endl;
 #ifndef NDEBUG
             // throw std::exception();
 #endif

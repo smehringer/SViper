@@ -1,6 +1,8 @@
 #pragma once
 
-#include <variant.h>
+#include <fstream>
+
+static std::ofstream log_file;
 
 /*! A global struct containing all the important information.
  * This struct holds information needed throughout the polishing process and
@@ -53,16 +55,16 @@ struct SViperConfig
     {
         /* return true if score is at least as good as half the mean coverage
          * of bases with half as good quality as the mean quality*/
-        return score >= (max(min_coverage, mean_coverage/2) * (baseQ_mean + mappQ_mean/alpha) / 4);
+        return score >= (std::max(min_coverage, mean_coverage/2) * (baseQ_mean + mappQ_mean/alpha) / 4);
     }
 
     /* Allowed Length Deviation.
      * Returns the minimum and maximum size a variant might have to be considered
      * the same variant. E.g. a deletion of size 1000 is considered polished but
      * the same, when the length is between 800-1200. */
-    bool sv_length_passes_threshold(unsigned length, Variant const & var)
+    bool sv_length_passes_threshold(unsigned length, unsigned golden_length)
     {
-        return (length >= var.sv_length - (0.8 * var.sv_length) &&
-                length <= var.sv_length + (0.8 * var.sv_length));
+        return (length >= golden_length - (0.8 * golden_length) &&
+                length <= golden_length + (0.8 * golden_length));
     }
 };
