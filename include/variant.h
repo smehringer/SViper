@@ -109,6 +109,7 @@ struct Variant
                                              info.substr(n+6, info.find(';', n) - n - 6)+
                                              " of variant " + ref_chrom + ":" + to_string(ref_pos) +
                                              " could not be read.");
+            sv_length = std::abs(sv_length); // some tools report a negative length since bases were deleted
         }
         else // if SVLEN is not in the info, use END (will not work for insertions...)
         {
