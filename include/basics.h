@@ -62,6 +62,28 @@ struct bamRecordQualityLess
     }
 };
 
+//! Comparator for BamAlignmentRecords
+struct bamRecordEqual
+{
+    bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
+    {
+        return (lhs.qName == rhs.qName && lhs.flag == rhs.flag && lhs.beginPos == rhs.beginPos);
+    }
+};
+
+//! Comparator for sorting BamAlignmentRecords by position (ascending)
+//! and within the same position by mapping quality (descending)
+struct bamRecordPosLessQualityGreater
+{
+    bool operator()(BamAlignmentRecord const & lhs, BamAlignmentRecord const & rhs) const
+    {
+        if (lhs.beginPos == rhs.beginPos)
+            return (lhs.mapQ > rhs.mapQ);
+
+        return lhs.beginPos < rhs.beginPos;
+    }
+};
+
 /*! A generic function to advance in the cigar string.
  * This function takes the current position in the cigar string (cigar_pos),
  * a corresponding position in the reference (ref_pos) and read (read_pos)
@@ -176,74 +198,14 @@ tuple<int, int> get_read_region_boundaries(BamAlignmentRecord const & record,
     return make_tuple(read_region_begin, read_region_end);
 }
 
-/*! Imitates (a slightly more restricted) samtools view.
- * This function appends every BamAlignmentRecord in region [start, end] to the
- * output vector 'records'. A record must overlap the region [start, end] by
- * at least one base, must not be a PCR duplicate or fail QC, and must have a
- * mapping quality > 15.
- * @param records    The output vector of records to append to.
- * @param bam_file   The BAM file object to search for records in region [start, end].
- * @param bam_index  The BAI file object corresponding to the bam file object.
- * @param start      The start of the region to extract records from.
- * @param end        The end of the region to extract records from.
- * @param long_reads A bool wether extracting long reads or not. This is important,
- *                   because seqan::jumpToRegion sometimes misses long reads thats
- *                   start way before but still span the region.
- */
-void view_bam(std::vector<seqan::BamAlignmentRecord> & records,
-              seqan::BamFileIn & bam_file,
-              seqan::BamIndex<seqan::Bai> const & bam_index,
-              seqan::CharString ref_name,
-              int start,
-              int end,
-              bool long_reads)
+//!\brief Overload appendValue for seqan::viewRecords, such that quality is checked
+// before appending a read
+void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
+                 seqan::BamAlignmentRecord const & rec)
 {
-    int rID = 0;
-    bool hasAlignments = false;
-    seqan::BamAlignmentRecord record{};
-
-    // seqan jummpToRegion jumps to a bin containing the start position
-    // since long reads often start way before this, we don?t want to miss those
-    int start_reading = start;
-    if (long_reads)
-        start_reading = std::max(0, start - 10000);
-
-    // get reference contig id
-    if (!seqan::getIdByName(rID, seqan::contigNamesCache(seqan::context(bam_file)), ref_name))
-    {
-        log_file << "[ERROR]: view_bam - Reference sequence named "
-                  << ref_name << " is not present in bam file." << std::endl;
-        return;
-    }
-
-    if (!seqan::jumpToRegion(bam_file, hasAlignments, rID, start_reading, start_reading+1, bam_index))
-    {
-        log_file << "[ERROR]: view_bam - Could not jump to " << start_reading << std::endl;
-        return;
-    }
-
-    if (!hasAlignments)
-    {
-        log_file << "[ERROR]: view_bam - No alignments for reference region ["
-                 << start_reading << "-" << end << "]." << std::endl;
-        return;
-    }
-
-    while (!seqan::atEnd(bam_file))
-    {
-        seqan::readRecord(record, bam_file);
-
-        if (record.beginPos >= end)
-            break;
-
-        // check if read is in region since binning of BAM file might be off
-        if (record.beginPos + static_cast<int>(getAlignmentLengthInRef(record)) < start)
-            continue;
-
-        if (!hasFlagQCNoPass(record) && !hasFlagDuplicate(record) && // passes QC
-            record.mapQ >= 15)                                       // only fairly unique hits
-            records.push_back(record);
-    }
+    if (!hasFlagQCNoPass(rec) && !hasFlagDuplicate(rec) && // passes QC
+        rec.mapQ >= 15)                                    // only fairly unique hits
+        records.push_back(rec);
 }
 
 /*! Appends (reference) flanks to a sequence.
@@ -295,7 +257,7 @@ seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
  */
 void records_to_read_pairs(StringSet<Dna5QString> & reads1,
                            StringSet<Dna5QString> & reads2,
-                           vector<BamAlignmentRecord> & records,
+                           std::vector<BamAlignmentRecord> & records,
                            seqan::BamFileIn & bam_file,
                            seqan::BamIndex<seqan::Bai> const & bam_index)
 {
@@ -384,6 +346,44 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
             appendValue(reads2, dummy_seq);
         }
     }
+}
+
+void cut_down_high_coverage(std::vector<seqan::BamAlignmentRecord> & short_reads,
+                            int16_t mean_coverage_of_short_reads)
+{
+    std::vector<seqan::BamAlignmentRecord> tmp;
+    std::sort(short_reads.begin(), short_reads.end(), bamRecordPosLessQualityGreater());
+
+    std::vector<int32_t> ends{};
+    ends.resize(short_reads[short_reads.size() - 1].beginPos -                        /* begin of last read in region */
+                short_reads[0].beginPos +                                             /* begin of first read in region */
+                seqan::getAlignmentLengthInRef(short_reads[short_reads.size() - 1]) + /* len of last read */
+                200);                                                                 /* buffer */
+
+    int16_t current_coverage{0};
+    int32_t pos{0};
+    int32_t region_begin{short_reads[0].beginPos};
+
+    for (auto const & rec : short_reads)
+    {
+        if (rec.beginPos != (region_begin + pos))
+        {
+            int16_t offset = rec.beginPos - (region_begin + pos); // since records are sorted ascending this should never be negative
+            std::for_each(ends.begin()+pos, ends.begin()+pos+offset, [&] (int32_t v) { current_coverage -= v; });
+            pos += offset; // since records are sorted ascending this should never be negative
+        }
+
+        if (current_coverage < mean_coverage_of_short_reads)
+        {
+            SEQAN_ASSERT_LEQ(ends.size(), pos + seqan::getAlignmentLengthInRef(rec));
+
+            tmp.push_back(rec);
+            ++current_coverage;
+            ++ends[pos + seqan::getAlignmentLengthInRef(rec)];
+        }
+    }
+
+    short_reads = tmp;
 }
 
 /*! Randomly down-samples the members of two containers to N.
