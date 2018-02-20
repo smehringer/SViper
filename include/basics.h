@@ -114,19 +114,22 @@ void advance_in_cigar(unsigned & cigar_pos,
 
         if ((cigar[cigar_pos]).operation == 'M')
         {
+            // Matches/mismatches advance both the read and the reference position
             read_pos += (cigar[cigar_pos]).count;
             ref_pos  += (cigar[cigar_pos]).count;
         }
-        else if ((cigar[cigar_pos]).operation == 'I' ||
-                 (cigar[cigar_pos]).operation == 'S' ||
-                 (cigar[cigar_pos]).operation == 'H')
+        else if ((cigar[cigar_pos]).operation == 'I' || (cigar[cigar_pos]).operation == 'S')
         {
+            // Insertions and soft-clips advance only the read position
             read_pos += (cigar[cigar_pos]).count;
         }
-        else // D
+        else if ((cigar[cigar_pos]).operation == 'D')
         {
+            // Deletions advance only the reference position
             ref_pos += (cigar[cigar_pos]).count;
         }
+        // else hard-clips ('H') advance neither the read nor the reference position
+
         ++cigar_pos;
     }
 }
