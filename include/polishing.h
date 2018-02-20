@@ -309,15 +309,5 @@ Dna5String polish_to_perfection(StringSet<Dna5QString> const & reads1,
         // break;
     }
 
-    config.only_proper_pairs = false;
-    old_ref = ""; // reset
-    while (ref != old_ref && config.rounds < 30)
-    {
-        old_ref = ref; // store prior result
-        ref = polish(reads1, reads2, ref, config);
-        ++config.rounds;
-        // break;
-    }
-
     return ref;
 }
