@@ -5,8 +5,8 @@
 
 #include <basics.h>
 
-double const DEV_SIZE = 0.8;
-double const DEV_POS = 0.9;
+double const DEV_SIZE = 0.6;
+double const DEV_POS = 0.5;
 
 enum SV_TYPE
 {
