@@ -6,6 +6,8 @@
 #include <cassert>
 #include <algorithm>
 
+#include <seqan/arg_parse.h>
+
 #include <basics.h>
 #include <variant.h>
 
@@ -16,16 +18,53 @@ using namespace std;
 const double ALLOWED_POS_DEVIATION = 0.95; // percent of the sv_length
 const double ALLOWED_LENGTH_DEVIATION = 0.8;
 const double SCORE_DEVIATION = 0.05;
-const double QUALITY_CUTOFF = 65.0;
+//const double QUALITY_CUTOFF = 65.0;
 
-
-struct Statistics
+struct CmdOptions
 {
-    vector<unsigned> total_numbers{0, 0, 0, 0, 0, 0};
-    vector<double> sum_scores_after{0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    vector<unsigned> after_could_not_be_scored{0, 0, 0, 0, 0, 0};
-    unsigned variant_in_before_but_not_in_after{0};
+    std::string vcf_file_name;
+    std::string golden_vcf_file_name;
+    unsigned score_cutoff;
+
+    CmdOptions() :
+        score_cutoff(0)
+    {}
 };
+
+seqan::ArgumentParser::ParseResult
+parseCommandLine(CmdOptions & options, int argc, char const ** argv)
+{
+    // Setup ArgumentParser.
+    seqan::ArgumentParser parser("comparing_vcf_files");
+
+    // We require one argument.
+    seqan::addArgument(parser, seqan::ArgParseArgument(
+        seqan::ArgParseArgument::STRING, "INPUT_VCF"));
+
+    seqan::addArgument(parser, seqan::ArgParseArgument(
+        seqan::ArgParseArgument::STRING, "INPUT_GOLDEN_VCF"));
+
+    // Define Options
+    seqan::addOption(parser, seqan::ArgParseOption(
+        "c", "cutoff", "Quality score cutoff, at which variants are regarded as false positives.",
+        seqan::ArgParseArgument::INTEGER, "INT"));
+
+    seqan::setDefaultValue(parser, "c", 0);
+
+    // Parse command line.
+    seqan::ArgumentParser::ParseResult res = seqan::parse(parser, argc, argv);
+
+    // Only extract  options if the program will continue after parseCommandLine()
+    if (res != seqan::ArgumentParser::PARSE_OK)
+        return res;
+
+    // Extract option values.
+    seqan::getOptionValue(options.score_cutoff, parser, "c");
+    seqan::getArgumentValue(options.vcf_file_name, parser, 0);
+    seqan::getArgumentValue(options.golden_vcf_file_name, parser, 1);
+
+    return seqan::ArgumentParser::PARSE_OK;
+}
 
 // IMPORTANT: Those operators are unusual and can e.g. not be used for sorting
 bool operator ==(const Variant& lhs, const Variant& rhs)
@@ -41,24 +80,18 @@ bool operator ==(const Variant& lhs, const Variant& rhs)
 
 bool operator <(const Variant& lhs, const Variant& rhs)
 {
-    return lhs.ref_pos < rhs.ref_pos;
+    if (lhs.ref_chrom == rhs.ref_chrom)
+        return lhs.ref_pos < rhs.ref_pos;
+    else
+        return lhs.ref_chrom < rhs.ref_chrom;
 }
 
 bool operator >(const Variant& lhs, const Variant& rhs)
 {
-    return lhs.ref_pos > rhs.ref_pos;
-}
-
-void add_pairing_stats(Statistics & stats,
-                       Variant const & curr_var_after)
-{
-    SV_TYPE t{curr_var_after.sv_type}; // the type is used to index the vectors
-
-    ++stats.total_numbers[t];
-    stats.sum_scores_after[t] += curr_var_after.quality;
-
-    if (curr_var_after.quality == 0.0)
-        ++stats.after_could_not_be_scored[t];
+    if (lhs.ref_chrom == rhs.ref_chrom)
+        return lhs.ref_pos > rhs.ref_pos;
+    else
+        return lhs.ref_chrom > rhs.ref_chrom;
 }
 
 unsigned sum(vector<unsigned> v)
@@ -69,67 +102,35 @@ unsigned sum(vector<unsigned> v)
     return sum;
 }
 
-int main(int argc, char ** argv)
+int main(int argc, const char ** argv)
 {
-    unsigned return_code{0};
-    if (argc == 1 || string(argv[1]) == "-h" || string(argv[1]) == "-help" || string(argv[1]) == "--help")
-    {
-        cout << endl
-             << "ectractThemAll - A tiny helper to extract reads by ID from a SAM file." << endl
-             << "----------------------------------------------------------------------" << endl
-             << endl
-             << "USAGE: SORTED_IDS_FILE  SORTED_SAM_FILE  OUT_FILE_NAME" << endl
-             << endl
-             << "SORTED_IDS_FILE\t An alphabetically sorted file with one id per line." << endl
-             << "SORTED_SAM_FILE\t An alphabetically sorted sam file containing all the reads." << endl
-             << "OUT_FILE_NAME\t Provide an file name for the ouput sam file." << endl
-             << endl
-             << "Note: The script will notify you in case not all ids were found." << endl
-             << "      It is important that the files are alphabetically ordered otherwise" << endl
-             << "      it wont work. In case you sorted the file with samtools sort and" << endl
-             << "      there are errors, try sorting it with unix sort." << endl
-             << "----------------------------------------------------------------------"
-             << endl;
-             return 0;
-    }
-    else if (argc < 2 || argc > 3)
-    {
-        cout << endl
-             << "USAGE: SORTED_IDS_FILE  SORTED_SAM_FILE  OUT_FILE_NAME" << endl
-             << endl
-             << "Or type -h/--help for more information." << endl
-             << endl;
-             return 0;
-    }
+    CmdOptions options;
+    seqan::ArgumentParser::ParseResult res = parseCommandLine(options, argc, argv);
 
-    bool golden{false}; // for readability on further if clauses
-    ifstream vcf_file_after(argv[1]);  // must be sorted by position grouped by chromosome
-    ifstream vcf_file_golden;
-    ofstream log_file("comparing_vcf_files.log");
+    if (res != seqan::ArgumentParser::PARSE_OK)
+        return res == seqan::ArgumentParser::PARSE_ERROR;
 
-    if (argc == 3) // golden vcf was provided
-    {
-        golden = true;
-        vcf_file_golden.open(argv[2]); // must be sorted by position grouped by chromosome
-    }
+    ifstream vcf_file(options.vcf_file_name.c_str());  // must be sorted by position grouped by chromosome
+    ifstream vcf_file_golden(options.golden_vcf_file_name.c_str());
+    ofstream log_file((options.vcf_file_name + ".log").c_str());
 
-    if (!vcf_file_after.is_open())
+    if (!vcf_file.is_open())
     {
         cerr << "[ERROR] Could not open file " << argv[1] << endl;
         return 1;
     }
 
-    if (golden && !vcf_file_golden.is_open())
+    if (!vcf_file_golden.is_open())
     {
         cerr << "[ERROR] Could not open file " << argv[2] << endl;
-        vcf_file_after.close();
+        vcf_file.close();
         return 1;
     }
 
-    Variant curr_var_after;  // stores information of the current vcf line in file vcf_after
+    Variant curr_var;  // stores information of the current vcf line in file vcf_after
     Variant curr_var_golden; // stores information of the current vcf line in file vcf_golden
-    Statistics stats;
-    Statistics golden_stats; // only used of golden vcf is provided
+
+    bool golden{true};
 
     // Initialization:
     // -------------------------------------------------------------------------
@@ -137,8 +138,8 @@ int main(int argc, char ** argv)
     string dummy_line{"#"}; // used throughout processing to read into
 
     while (dummy_line[0] == '#')
-        getline(vcf_file_after, dummy_line);
-    curr_var_after = Variant(dummy_line);
+        getline(vcf_file, dummy_line);
+    curr_var = Variant(dummy_line);
 
     if (golden)
     {
@@ -155,23 +156,37 @@ int main(int argc, char ** argv)
     vector<vector<unsigned>> bp_deviation_after_to_golden{{}, {}, {}, {}, {}, {}}; // for golden
     vector<unsigned> variants_unique_to_golden{0, 0, 0, 0, 0, 0};
 
+    log_file << "CLASS"
+             << "\t" << "ID" /*which is the golden id if matched.*/
+             << "\t" << "SV_TYPE"
+             << "\t" << "CHROM"
+             << "\t" << "POS"
+             << "\t" << "POS_DIFF_TO_TRUTH"
+             << "\t" << "POS_END"
+             << "\t" << "POS_END_DIFF_TO_TRUTH"
+             << "\t" << "SV_LENGTH"
+             << "\t" << "SV_LENGTH_DIFF_TO_TRUTH"
+             << "\t" << "POLISHING_SCORE"
+             << endl;
+
     while (true) // will be broken if one of the vcf file is at end
     {
         while (golden &&
-               !(curr_var_golden == curr_var_after) && // != is not equal to < so both must be tested
-               (curr_var_golden < curr_var_after))
+               !(curr_var_golden == curr_var) && // != is not equal to < so both must be tested
+               (curr_var_golden < curr_var))
         {
-            log_file << "2"
-                     << "\t" << "."
-                     << "\t" << "."
-                     << "\t" << "."
-                     << "\t" << "."
-                     << "\t" << "."
-                     << "\t" << "."
-                     << "\t" << "FN:" << curr_var_golden.sv_type << ":" << curr_var_golden.ref_chrom << ":" << curr_var_golden.ref_pos << ":" << curr_var_golden.sv_length
+            log_file << "FN"
+                     << "\tGOLDEN_" << curr_var_golden.id
+                     << "\t" << curr_var_golden.sv_type
+                     << "\t" << curr_var_golden.ref_chrom
+                     << "\t" << curr_var_golden.ref_pos
+                     << "\tNA"
+                     << "\t" << (curr_var_golden.ref_pos + curr_var_golden.sv_length)
+                     << "\tNA"
+                     << "\t" << curr_var_golden.sv_length
+                     << "\tNA"
+                     << "\t" << curr_var_golden.quality
                      << endl;
-
-            ++variants_unique_to_golden[curr_var_golden.sv_type];
 
             if (!getline(vcf_file_golden, dummy_line))
             {
@@ -184,165 +199,101 @@ int main(int argc, char ** argv)
 
         }
 
-        if (curr_var_after.filter == "PASS" && // variant passed polishing
-            curr_var_after.quality >= QUALITY_CUTOFF)
+        if (curr_var.filter == "PASS" && // variant passed polishing
+            curr_var.quality >= options.score_cutoff)
         {
-            string golden_info{"NO_INFO"};
-
-            if (golden)
-                golden_info = "FP"; // default, to be changed below
-
-            if (golden && curr_var_golden == curr_var_after)
+            if (golden && curr_var_golden == curr_var) // TP
             {
-                assert(curr_var_after.ref_chrom == curr_var_after.ref_chrom);
-                assert(curr_var_after.sv_type == curr_var_after.sv_type);
+                assert(curr_var.ref_chrom == curr_var_golden.ref_chrom);
+                assert(curr_var.sv_type == curr_var_golden.sv_type);
 
-                golden_info = "TP:" + to_string(curr_var_golden.ref_pos);
-                add_pairing_stats(golden_stats, curr_var_after);
-                (bp_deviation_after_to_golden[curr_var_golden.sv_type]).push_back(abs(curr_var_golden.ref_pos - curr_var_after.ref_pos));
+                log_file << "TP"
+                         << "\tGOLDEN_" << curr_var_golden.id
+                         << "\t" << curr_var.sv_type
+                         << "\t" << curr_var.ref_chrom
+                         << "\t" << curr_var.ref_pos
+                         << "\t" << (curr_var.ref_pos - curr_var_golden.ref_pos)
+                         << "\t" << (curr_var.ref_pos + curr_var.sv_length)
+                         << "\t" << ((curr_var.ref_pos + curr_var.sv_length) - (curr_var_golden.ref_pos + curr_var_golden.sv_length))
+                         << "\t" << curr_var.sv_length
+                         << "\t" << (curr_var.sv_length - curr_var_golden.sv_length)
+                         << "\t" << curr_var.quality
+                         << endl;
 
                 if (!getline(vcf_file_golden, dummy_line))
                     golden = false;
                 else
                     curr_var_golden = Variant(dummy_line);
             }
-
-            log_file << "0"
-                     << "\t" << curr_var_after.sv_type
-                     << "\t" << curr_var_after.ref_chrom
-                     << "\t" << curr_var_after.ref_pos
-                     << "\t" << curr_var_after.sv_length
-                     << "\t" << curr_var_after.quality
-                     << "\t" << golden_info
-                     << endl;
-
-            add_pairing_stats(stats, curr_var_after);
+            else // FP
+            {
+                log_file << "FP"
+                         << "\t" << curr_var.id
+                         << "\t" << curr_var.sv_type
+                         << "\t" << curr_var.ref_chrom
+                         << "\t" << curr_var.ref_pos
+                         << "\tNA"
+                         << "\t" << (curr_var.ref_pos + curr_var.sv_length)
+                         << "\tNA"
+                         << "\t" << curr_var.sv_length
+                         << "\tNA"
+                         << "\t" << curr_var.quality
+                         << endl;
+            }
         }
         else // variant failed polishing
         {
-            string golden_info{"NO_INFO"};
-
-            if (golden)
-                golden_info = "TN"; // default. to be changed in next if clause
-
-            if (golden && curr_var_golden == curr_var_after)
+            if (golden && curr_var_golden == curr_var) // FN
             {
-                golden_info = "FN:" + to_string(curr_var_golden.ref_pos);
-                ++golden_stats.variant_in_before_but_not_in_after;
+                assert(curr_var.ref_chrom == curr_var_golden.ref_chrom);
+                assert(curr_var.sv_type == curr_var_golden.sv_type);
+
+                log_file << "FN"
+                         << "\tGOLDEN_" << curr_var_golden.id
+                         << "\t" << curr_var.sv_type
+                         << "\t" << curr_var.ref_chrom
+                         << "\t" << curr_var.ref_pos
+                         << "\t" << (curr_var.ref_pos - curr_var_golden.ref_pos)
+                         << "\t" << (curr_var.ref_pos + curr_var.sv_length)
+                         << "\t" << ((curr_var.ref_pos + curr_var.sv_length) - (curr_var_golden.ref_pos + curr_var_golden.sv_length))
+                         << "\t" << curr_var.sv_length
+                         << "\t" << (curr_var.sv_length - curr_var_golden.sv_length)
+                         << "\t" << curr_var.quality
+                         << endl;
 
                 if (!getline(vcf_file_golden, dummy_line))
                     golden = false;
                 else
                     curr_var_golden = Variant(dummy_line);
             }
-
-            log_file << "1"
-                     << "\t" << curr_var_after.sv_type
-                     << "\t" << curr_var_after.ref_chrom
-                     << "\t" << curr_var_after.ref_pos
-                     << "\t" << curr_var_after.sv_length
-                     << "\t" << curr_var_after.quality
-                     << "\t" << golden_info
-                     << endl;
-
-            ++stats.variant_in_before_but_not_in_after;
+            else // TN
+            {
+                log_file << "TN"
+                         << "\t" << curr_var.id
+                         << "\t" << curr_var.sv_type
+                         << "\t" << curr_var.ref_chrom
+                         << "\t" << curr_var.ref_pos
+                         << "\tNA"
+                         << "\t" << (curr_var.ref_pos + curr_var.sv_length)
+                         << "\tNA"
+                         << "\t" << curr_var.sv_length
+                         << "\tNA"
+                         << "\t" << curr_var.quality
+                         << endl;
+            }
         }
 
         // update variant
-        if (!getline(vcf_file_after, dummy_line))
+        if (!getline(vcf_file, dummy_line))
             break;
-        curr_var_after = Variant(dummy_line);
+        curr_var = Variant(dummy_line);
     }
 
     // Finalizing:
     // -------------------------------------------------------------------------
 
-    // print stats
-    cout.precision(4);
-    cout << "------------------------------------------------------------------------------------------------------------------" << endl
-         << "                                              General Statistics" << endl
-         << "------------------------------------------------------------------------------------------------------------------" << endl
-         << endl
-         << "==================================================================================================================" << endl
-         << "     what             |\tUNKOWN\t|\tDEL\t|\tINS\t|\tDUP\t|\tINV\t|\tTRA\t|" << endl
-         << "------------------------------------------------------------------------------------------------------------------" << endl
-         << "Total number          |\t";
-    for (auto num : stats.total_numbers)
-        cout << num << "\t|\t";
-    cout << endl;
-    cout << "Average Score         |\t";
-    for (unsigned i = 0; i < stats.total_numbers.size(); ++i)
-        if (stats.total_numbers[i] > 0)
-            cout << ((stats.sum_scores_after[i])/(stats.total_numbers[i])) << "\t|\t";
-        else
-            cout << "0\t|\t";
-    cout << endl;
-    cout << "------------------------------------------------------------------------------------------------------------------" << endl;
-    cout << "Not scored (After)    |\t";
-    for (auto num : stats.after_could_not_be_scored)
-        cout << num << "\t|\t";
-    cout << endl;
+	vcf_file.close();
+    vcf_file_golden.close();
 
-    cout << "==================================================================================================================" << endl;
-    cout << "Number of Variants that were \"polished away\": " << stats.variant_in_before_but_not_in_after << endl
-         << "------------------------------------------------------------------------------------------------------------------" << endl;
-
-
-    cout << "------------------------------------------------------------------------------------------------------------------" << endl
-         << "                                                 Golden Statistics" << endl
-         << "------------------------------------------------------------------------------------------------------------------" << endl
-         << endl
-         << "==================================================================================================================" << endl
-         << "     what             |\tUNKOWN\t|\tDEL\t|\tINS\t|\tDUP\t|\tINV\t|\tTRA\t|" << endl
-         << "------------------------------------------------------------------------------------------------------------------" << endl
-         << "True Positives        |\t";
-    for (auto num : golden_stats.total_numbers)
-        cout << num << "\t|\t";
-    cout << endl;
-    cout << "Average Score         |\t";
-    for (unsigned i = 0; i < golden_stats.total_numbers.size(); ++i)
-        if (golden_stats.total_numbers[i] > 0)
-            cout << ((golden_stats.sum_scores_after[i])/(golden_stats.total_numbers[i])) << "\t|\t";
-        else
-            cout << "0\t|\t";
-    cout << endl;
-    cout << "Mean Bp Dev After     |\t";
-    for (unsigned i = 0; i < golden_stats.total_numbers.size(); ++i)
-    {
-        if ((bp_deviation_after_to_golden[i]).size() > 0)
-        {
-            std::nth_element((bp_deviation_after_to_golden[i]).begin(), (bp_deviation_after_to_golden[i]).begin() + (bp_deviation_after_to_golden[i]).size()/2, (bp_deviation_after_to_golden[i]).end());
-            cout << (bp_deviation_after_to_golden[i])[(bp_deviation_after_to_golden[i]).size()/2]
-                 << "/" << ((sum(bp_deviation_after_to_golden[i])+1)/(golden_stats.total_numbers[i]+1)-1) << "\t|\t";
-        }
-        else
-        {
-            cout << "-\t|\t";
-        }
-    }
-    cout << endl;
-
-    cout << "------------------------------------------------------------------------------------------------------------------" << endl;
-    cout << "Not scored (After)    |\t";
-    for (auto num : golden_stats.after_could_not_be_scored)
-        cout << num << "\t|\t";
-    cout << endl;
-
-    cout << "------------------------------------------------------------------------------------------------------------------" << endl;
-    cout << "False Negatives      |\t";
-    for (auto num : variants_unique_to_golden)
-        cout << num << "\t|\t";
-    cout << endl;
-
-    cout << "==================================================================================================================" << endl;
-    cout << "Number of Variants  that were \"polished away\": " << golden_stats.variant_in_before_but_not_in_after << endl
-         << endl
-         << "------------------------------------------------------------------------------------------------------------------" << endl;
-
-
-	vcf_file_after.close();
-	if (golden)
-    	vcf_file_golden.close();
-
-    return return_code;
+    return 0;
 }
