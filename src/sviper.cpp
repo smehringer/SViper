@@ -23,12 +23,13 @@ struct CmdOptions
 {
     bool verbose{false};
     bool veryVerbose{false};
-    int16_t flanking_region{400}; // size of flanking region for breakpoints
-    int16_t mean_coverage_of_short_reads{36}; // original coverage
+    bool output_polished_bam{false};
+    int flanking_region{400}; // size of flanking region for breakpoints
+    int mean_coverage_of_short_reads{36}; // original coverage
     string long_read_file_name;
     string short_read_file_name;
     string candidate_file_name;
-    string out_fa_file_name;
+    string output_prefix;
     string reference_file_name;
     string log_file_name;
 };
@@ -72,15 +73,16 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 
     addOption(parser, seqan::ArgParseOption(
         "o", "output-prefix",
-        "A name for the output files. NOTE: The current output is a log file and fasta file, that contains the "
-        "polished sequences for each variant. Since the final realignment is not part of this tool yet,"
-        "The user must map the fasta file with a mapper of his choice (e.g. minimap2) and then call"
-        " evaluate_final_alignment.",
-        seqan::ArgParseArgument::INPUT_FILE, "FA_FILE"));
+        "A name for the output files. The current output is a log file and vcf file, that contains the "
+        "polished sequences for each variant.",
+        seqan::ArgParseArgument::INPUT_FILE, "PREFIX"));
 
     addOption(parser, seqan::ArgParseOption(
         "v", "verbose",
         "Turn on detailed information about the process."));
+
+    addOption(parser, seqan::ArgParseOption(
+        "", "output-polished-bam", "For debugging or manual inspection the polished reads can be written to a file."));
 
     // addOption(parser, seqan::ArgParseOption(
     //     "vv", "very-verbose",
@@ -107,17 +109,18 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     getOptionValue(options.long_read_file_name, parser, "long-read-bam");
     getOptionValue(options.short_read_file_name, parser, "short-read-bam");
     getOptionValue(options.reference_file_name, parser, "reference");
-    getOptionValue(options.out_fa_file_name, parser, "output-prefix");
-    //getOptionValue(options.flanking_region, parser, "flanking-region");
-    //getOptionValue(options.mean_coverage_of_short_reads, parser, "coverage-short-reads");
+    getOptionValue(options.output_prefix, parser, "output-prefix");
+    getOptionValue(options.flanking_region, parser, "flanking-region");
+    getOptionValue(options.mean_coverage_of_short_reads, parser, "coverage-short-reads");
     options.verbose = isSet(parser, "verbose");
+    options.output_polished_bam = isSet(parser, "output-polished-bam");
     // options.veryVerbose = isSet(parser, "very-verbose");
 
     //if (options.veryVerbose)
     //    options.verbose = true;
 
-    if (options.out_fa_file_name.empty())
-        options.out_fa_file_name = options.candidate_file_name + "_polished";
+    if (options.output_prefix.empty())
+        options.output_prefix = options.candidate_file_name + "_polished";
 
     return seqan::ArgumentParser::PARSE_OK;
 }
@@ -135,7 +138,7 @@ int main(int argc, char const ** argv)
     // Check files
     // -------------------------------------------------------------------------
     ifstream input_vcf;           // The candidate variants to polish
-    // ofstream output_vcf;          // The polished variant as output
+    ofstream output_vcf;          // The polished variant as output
     FaiIndex faiIndex;            // The reference sequence fasta index
     BamHeader long_read_header;   // The bam header object needed to fill bam context
     BamHeader short_read_header;  // The bam header object needed to fill bam context
@@ -143,19 +146,22 @@ int main(int argc, char const ** argv)
     BamFileIn short_read_bam;     // THe short read bam file
     BamIndex<Bai> long_read_bai;  // The bam index to the long read bam file
     BamIndex<Bai> short_read_bai; // The bam index to the short read bam file
-    SeqFileOut final_fa;          // The current output fasta file to be mapped
+    BamFileOut result_bam(context(long_read_bam)); // The optional output bam file for polished reads
 
-    BamFileOut result_bam(context(long_read_bam), toCString(options.out_fa_file_name + "_seqan.sam"));
+    if (options.output_polished_bam)
+    {
+        if (!open_file_success(result_bam, toCString(options.output_prefix + "_polished_reads.bam")))
+            return 1;
+    }
 
     if (!open_file_success(input_vcf, options.candidate_file_name.c_str()) ||
-        /*!open_file_success(output_vcf, options.out_fa_file_name.c_str()) || */ // no direct vcf output available yet
+        !open_file_success(output_vcf, (options.output_prefix + ".vcf").c_str()) ||
         !open_file_success(long_read_bam, options.long_read_file_name.c_str()) ||
         !open_file_success(short_read_bam, options.short_read_file_name.c_str()) ||
         !open_file_success(long_read_bai, (options.long_read_file_name + ".bai").c_str()) ||
         !open_file_success(short_read_bai, (options.short_read_file_name + ".bai").c_str()) ||
         !open_file_success(faiIndex, options.reference_file_name.c_str()) ||
-        !open_file_success(final_fa, (options.out_fa_file_name + ".fa").c_str()) ||
-        !open_file_success(log_file, (options.out_fa_file_name + ".log").c_str()))
+        !open_file_success(log_file, (options.output_prefix + ".log").c_str()))
         return 1;
 
     std::cout << "======================================================================" << std::endl
@@ -185,7 +191,8 @@ int main(int argc, char const ** argv)
     try
     {
         readHeader(long_read_header, long_read_bam);
-        writeHeader(result_bam, long_read_header);
+        if (options.output_polished_bam)
+            writeHeader(result_bam, long_read_header);
     }
     catch (Exception & e)
     {
@@ -196,10 +203,16 @@ int main(int argc, char const ** argv)
         return 1;
     }
 
-    // Scip VCF header
+    // Skqip VCF header // TODO:: use seqan vcf parser instead (needs to be extended)
     // -------------------------------------------------------------------------
-    std::string line{"#"}; // TODO:: use seqan vcf parser instead (needs to be extended)
-    while (line[0] == '#' && getline(input_vcf, line)) {}
+    std::string line{'#'};
+    while (getline(input_vcf, line))
+    {
+        if (line[0] != '#')
+            break;
+        else
+            output_vcf << line << std::endl; // copy header to output file
+    }
 
     // Polish variants
     // -------------------------------------------------------------------------
@@ -258,15 +271,19 @@ int main(int argc, char const ** argv)
 
         if (!seqan::getIdByName(rID_short, seqan::contigNamesCache(seqan::context(short_read_bam)), var.ref_chrom))
         {
-            log_file << "[ERROR]: No reference sequence named "
+            log_file << "[ ERROR ]: No reference sequence named "
                       << var.ref_chrom << " in short read bam file." << std::endl;
+            var.filter = "FAIL4";
+            var.write(output_vcf); // make vcf complete
             continue;
         }
 
         if (!seqan::getIdByName(rID_long, seqan::contigNamesCache(seqan::context(long_read_bam)), var.ref_chrom))
         {
-            log_file << "[ERROR]: No reference sequence named "
+            log_file << "[ ERROR ]: No reference sequence named "
                       << var.ref_chrom << " in long read bam file." << std::endl;
+            var.filter = "FAIL1";
+            var.write(output_vcf); // make vcf complete
             continue;
         }
 
@@ -293,6 +310,9 @@ int main(int argc, char const ** argv)
                       << min(ref_length, var.ref_pos + 50) << " or "
                       << var.ref_chrom << ":" << max(0, var.ref_pos_end - 50) << "-"
                       << min(ref_length, var.ref_pos_end + 50) << "or " << std::endl;
+
+            var.filter = "FAIL1";
+            var.write(output_vcf); // make vcf complete
             continue;
         }
 
@@ -335,6 +355,9 @@ int main(int argc, char const ** argv)
                           << " in region " << var.ref_chrom << ":"
                           << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
                           << std::endl;
+
+                var.filter = "FAIL2";
+                var.write(output_vcf); // make vcf complete
                 continue;
             }
         }
@@ -385,6 +408,9 @@ int main(int argc, char const ** argv)
                           << " in region " << var.ref_chrom << ":"
                           << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
                           << std::endl;
+
+                var.filter = "FAIL3";
+                var.write(output_vcf); // make vcf complete
                 continue;
         }
 
@@ -430,31 +456,17 @@ int main(int argc, char const ** argv)
 
         if (short_reads.size() < 20)
         {
-            std::cout << "[ ERROR3 ] Not enough short reads (only " << short_reads.size()
+            std::cout << "[ ERROR4 ] Not enough short reads (only " << short_reads.size()
                       << ") for variant of type " << var.alt_seq
                       << " in region " << var.ref_chrom << ":" << ref_region_start
                       << "-" << ref_region_end << std::endl;
+
+            var.filter = "FAIL4";
+            var.write(output_vcf); // make vcf complete
             continue;
         }
 
-//BamFileOut before_bam(context(short_read_bam), toCString("before.sam"));
-//writeHeader(before_bam, short_read_header);
-//for (auto const & rec : short_reads) writeRecord(before_bam, rec);
-        // We want to avoid polishing bias due to weird coverage depth
-        // Therefore, we restrict the coverage to the mean coverage and discard
-        // any additional reads, keeping the ones with the best quality.
-        //cut_down_high_coverage(short_reads, options.mean_coverage_of_short_reads);
-        // after this step the coverage is at most options.mean_coverage_of_short_reads
-        // but it may have caused some reads to loose it's mate in the records to read pairs,
-        // those mates are recovered. Thus, the maximum cov can reach 2*options.mean_coverage_of_short_reads
-//BamFileOut after_bam(context(short_read_bam), toCString("after.sam"));
-//writeHeader(after_bam, short_read_header);
-//for (auto const & rec : short_reads) writeRecord(after_bam, rec);
-
         records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, short_read_bai);
-
-//        if (length(short_reads_1) > 250) // ~400 reads -> 60x coverage is enough
-//            subsample(short_reads_1, short_reads_2, 250); // sub sample short reads to 250 pairs
 
         log_file << "--- Extracted " << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
 
@@ -496,24 +508,14 @@ int main(int argc, char const ** argv)
                                                       ref_length,
                                                       ref_region_start - 150,
                                                       ref_region_end + 150,
-                                                      4850);
+                                                      350);
 
-        // Print polished and flanked sequence to file
+        // Align polished sequence to reference
         // ---------------------------------------------------------------------
-        std::string read_identifier = (string("final") +
-                                       ":" + var.ref_chrom +
-                                       ":" + to_string(var.ref_pos) +
-                                       ":" + var.id); // this name is important for evaluating
-
-        writeRecord(final_fa, read_identifier, final_sequence);
-
-        // Align polished sequence to reference and evaluate alignment
-        // ---------------------------------------------------------------------
-
         Dna5String ref_part;
         seqan::readRegion(ref_part, faiIndex, ref_fai_idx,
-                          max(0, ref_region_start - 5000),
-                          min(ref_region_end + 5000, ref_length));
+                          max(0, ref_region_start - 500),
+                          min(ref_region_end + 500, ref_length));
 
         typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRead;
         typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRef;
@@ -524,23 +526,49 @@ int main(int argc, char const ** argv)
                                            seqan::Score<int, seqan::Simple>(7, -8, -5, -50),
                                            seqan::AlignConfig<false, false, false, false>(),
                                            seqan::AffineGaps());
+
         BamAlignmentRecord final_record{};
-        final_record.qName = read_identifier;
-        final_record.beginPos = max(0, ref_region_start - 5000);
+        final_record.beginPos = max(0, ref_region_start - 500);
         final_record.seq = final_sequence;
         final_record.mapQ = score;
         seqan::getIdByName(final_record.rID, seqan::contigNamesCache(seqan::context(long_read_bam)), var.ref_chrom);
-        seqan::getCigarString(final_record.cigar, gapsRef, gapsSeq, 100000u);
+        seqan::getCigarString(final_record.cigar, gapsRef, gapsSeq, 100000u); // 10000 to avoid N instead of D for split read
 
-        writeRecord(result_bam, final_record);
+        if (options.output_polished_bam)
+        {
+            std::string read_identifier = (string("polished_var") +
+                                           ":" + var.ref_chrom +
+                                           ":" + to_string(var.ref_pos) +
+                                           ":" + var.id); // this name is important for evaluating
+            final_record.qName = read_identifier;
 
-        // Align polished sequence to reference and evaluate alignment
+            writeRecord(result_bam, final_record);
+        }
+
+        // Evaluate Alignment
         // ---------------------------------------------------------------------
+        // If refine_variant fails, the variant is not supported anymore but remains unchanged.
+        // If not, the variant now might have different start/end positions and other information
         auto end = std::chrono::high_resolution_clock::now();
-        std::cout << "[ SUCCESS ] Polished variant " << var.id << " at " << var.ref_chrom << ":"
-                  << var.ref_pos << "\t" << var.alt_seq << "\t[ "
-                  << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
-                  << std::endl;
+
+        if (!refine_variant(final_record, var))
+        {
+            var.filter = "FAIL5";
+            //assign_quality(record, var, false);
+            std::cout << "[ ERROR5 ] \"Polished away\" variant " << var.id << " at " << var.ref_chrom << ":"
+                      << var.ref_pos << "\t" << var.alt_seq << "\t[ "
+                      << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
+                      << std::endl;
+        }
+        else
+        {
+            //assign_quality(record, var, true);
+            std::cout << "[ SUCCESS ] Polished variant " << var.id << " at " << var.ref_chrom << ":"
+                      << var.ref_pos << "\t" << var.alt_seq << "\t[ "
+                      << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
+                      << std::endl;
+        }
+        var.write(output_vcf);
     }
     while (getline(input_vcf, line));
 
