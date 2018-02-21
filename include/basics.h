@@ -378,7 +378,7 @@ void cut_down_high_coverage(std::vector<seqan::BamAlignmentRecord> & short_reads
 
         if (current_coverage < mean_coverage_of_short_reads)
         {
-            SEQAN_ASSERT_LEQ(ends.size(), pos + seqan::getAlignmentLengthInRef(rec));
+            SEQAN_ASSERT_LEQ(pos + seqan::getAlignmentLengthInRef(rec), ends.size());
 
             tmp.push_back(rec);
             ++current_coverage;
