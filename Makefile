@@ -42,16 +42,13 @@ DEBUGCXXFLAGS+=-g -O0 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=1
 RELEASECXXFLAGS+=$(CXXFLAGS)
 RELEASECXXFLAGS+=-O3 -DSEQAN_ENABLE_TESTING=0 -DSEQAN_ENABLE_DEBUG=0 -DNDEBUG
 
-all: sviper evaluate_final_mapping
+all: sviper
 
 debug: $(SRCDIR)/sviper.cpp
 	 $(CXX) $(DEBUGCXXFLAGS) -o sviper_debug $(SRCDIR)/sviper.cpp $(LDLIBS)
 
 sviper: $(SRCDIR)/sviper.cpp
 	 $(CXX) $(RELEASECXXFLAGS) -o sviper $(SRCDIR)/sviper.cpp $(LDLIBS)
-
-evaluate_final_mapping: $(SRCDIR)/evaluate_final_mapping.cpp
-	 $(CXX) $(RELEASECXXFLAGS) -o evaluate_final_mapping $(SRCDIR)/evaluate_final_mapping.cpp $(LDLIBS)
 
 utilities: $(TARGETS)
 
@@ -62,7 +59,6 @@ $(UTILITYDIR)/%: $(SRCDIR)/%.cpp
 clean:
 	rm -f sviper
 	rm -f sviper_debug
-	rm -f evaluate_final_mapping
 	@echo Cleaning executables in utilities
 	$(shell find utilities -type f -regex '^[^.]+' -delete)
 
