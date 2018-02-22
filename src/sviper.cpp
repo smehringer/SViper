@@ -300,7 +300,7 @@ int main(int argc, char const ** argv)
 
         if (ont_reads.size() == 0)
         {
-            log_file  << "[ ERROR1 ] No long reads in reference region "
+            log_file  << "ERROR1: No long reads in reference region "
                       << var.ref_chrom << ":" << max(0, var.ref_pos - 50) << "-"
                       << min(ref_length, var.ref_pos + 50) << " or "
                       << var.ref_chrom << ":" << max(0, var.ref_pos_end - 50) << "-"
@@ -323,7 +323,7 @@ int main(int argc, char const ** argv)
         vector<BamAlignmentRecord> supporting_records;
         // TODO check if var is not empty!
 
-        log_file << "--- Searchin in (reference) region ["
+        log_file << "--- Searching in (reference) region ["
                  << (int)(var.ref_pos - DEV_POS * var.sv_length) << "-"
                  << (int)(var.ref_pos + var.sv_length + DEV_POS * var.sv_length) << "]"
                  << " for a variant of type " << var.alt_seq
@@ -351,7 +351,11 @@ int main(int argc, char const ** argv)
 
             if (supporting_records.size() == 0) // there are none at all
             {
-                std::cout << "[ ERROR2 ] No supporting reads for a " << var.alt_seq
+                std::cout << "[ ERROR2 ] No supporting long reads for a " << var.alt_seq
+                          << " in region " << var.ref_chrom << ":"
+                          << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
+                          << std::endl;
+                log_file  << "ERROR2: No supporting long reads for a " << var.alt_seq
                           << " in region " << var.ref_chrom << ":"
                           << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
                           << std::endl;
@@ -408,6 +412,10 @@ int main(int argc, char const ** argv)
                           << " in region " << var.ref_chrom << ":"
                           << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
                           << std::endl;
+                log_file  << "ERROR3: No fitting regions for a " << var.alt_seq
+                          << " in region " << var.ref_chrom << ":"
+                          << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
+                          << std::endl;
 
                 var.filter = "FAIL3";
                 var.write(output_vcf); // make vcf complete
@@ -457,6 +465,10 @@ int main(int argc, char const ** argv)
         if (short_reads.size() < 20)
         {
             std::cout << "[ ERROR4 ] Not enough short reads (only " << short_reads.size()
+                      << ") for variant of type " << var.alt_seq
+                      << " in region " << var.ref_chrom << ":" << ref_region_start
+                      << "-" << ref_region_end << std::endl;
+            log_file  << "ERROR4: Not enough short reads (only " << short_reads.size()
                       << ") for variant of type " << var.alt_seq
                       << " in region " << var.ref_chrom << ":" << ref_region_start
                       << "-" << ref_region_end << std::endl;
@@ -523,7 +535,7 @@ int main(int argc, char const ** argv)
         TGapsRead gapsSeq(final_sequence);
 
         int score = seqan::globalAlignment(gapsRef, gapsSeq,
-                                           seqan::Score<int, seqan::Simple>(7, -8, -5, -50),
+                                           seqan::Score<double, seqan::Simple>(50, -50, -1, -50),
                                            seqan::AlignConfig<false, false, false, false>(),
                                            seqan::AffineGaps());
 
@@ -559,11 +571,19 @@ int main(int argc, char const ** argv)
                       << var.ref_pos << "\t" << var.alt_seq << "\t[ "
                       << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
                       << std::endl;
+            log_file  << "ERROR5: \"Polished away\" variant " << var.id << " at " << var.ref_chrom << ":"
+                      << var.ref_pos << "\t" << var.alt_seq << "\t[ "
+                      << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
+                      << std::endl;
         }
         else
         {
             //assign_quality(record, var, true);
             std::cout << "[ SUCCESS ] Polished variant " << var.id << " at " << var.ref_chrom << ":"
+                      << var.ref_pos << "\t" << var.alt_seq << "\t[ "
+                      << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
+                      << std::endl;
+            log_file  << "SUCCESS: Polished variant " << var.id << " at " << var.ref_chrom << ":"
                       << var.ref_pos << "\t" << var.alt_seq << "\t[ "
                       << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
                       << std::endl;
