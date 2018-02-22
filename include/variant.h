@@ -76,46 +76,54 @@ struct Variant
             sv_type = SV_TYPE::UNKOWN;
 
         // determine END position from END info tag
-        auto n = info.find("END=");
+        auto end_n = info.find("END=");
+        auto len_n = info.find("SVLEN=");
 
-        if (n !=  std::string::npos)
+        if (end_n != std::string::npos)
         {
-            std::stringstream ss(info.substr(n+4, info.find(';', n) - n - 4));
+            std::stringstream ss(info.substr(end_n+4, info.find(';', end_n) - end_n - 4));
             ss >> ref_pos_end;                 // store end temporarily
             if (ss.fail())
                 throw std::iostream::failure("ERROR when reading vcf file. END value "+
-                                             info.substr(n+4, info.find(';', n) - n - 4)+
+                                             info.substr(end_n+4, info.find(';', end_n) - end_n - 4)+
                                              " of variant " + ref_chrom + ":" + to_string(ref_pos) +
                                              " could not be read.");
         }
-        else
-        {
-            throw std::iostream::failure(string("ERROR when reading vcf file.") +
-                                         " END tag not found in info field of variant "+
-                                         ref_chrom + ":" + to_string(ref_pos) + "." +
-                                         " INFO: " + info + "."
-                                         );
-        }
 
-        n = info.find("SVLEN=");
-        if (n != std::string::npos &&
-            info.substr(n+6, info.find(';', n) - n - 6) != "NA" &&
-            info.substr(n+6, info.find(';', n) - n - 6) != ".")
+        if (len_n != std::string::npos &&
+            info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != "NA" &&
+            info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != ".")
         {
-            std::stringstream ss(info.substr(n+6, info.find(';', n) - n - 6));
+            std::stringstream ss(info.substr(len_n+6, info.find(';', len_n) - len_n - 6));
             ss >> sv_length;
             if (ss.fail())
                 throw std::iostream::failure("ERROR when reading vcf file. SVLEN value "+
-                                             info.substr(n+6, info.find(';', n) - n - 6)+
+                                             info.substr(len_n+6, info.find(';', len_n) - len_n - 6)+
                                              " of variant " + ref_chrom + ":" + to_string(ref_pos) +
                                              " could not be read.");
             sv_length = std::abs(sv_length); // some tools report a negative length since bases were deleted
+
+            if (end_n == std::string::npos) // no end tag but sv_len tag
+            {
+                if (sv_type == SV_TYPE::DEL)
+                    ref_pos_end = ref_pos + sv_length - 1;
+                else // IMPORTANT: this is correct for <INS> but undefined for all other types which are currently not supported
+                    ref_pos_end = ref_pos;
+            }
         }
         else // if SVLEN is not in the info, use END (will not work for insertions...)
         {
+            if (end_n == std::string::npos)
+            {
+                throw std::iostream::failure(string("ERROR when reading vcf file.") +
+                                             " neither END nor SVLEN tag not found in info field of variant "+
+                                             ref_chrom + ":" + to_string(ref_pos) + "." +
+                                             " INFO: " + info + "."
+                                             );
+            }
+
             sv_length = ref_pos_end - ref_pos; // calculate actual length
         }
-
     }
 
     Variant() = default;
