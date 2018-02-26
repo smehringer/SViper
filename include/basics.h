@@ -230,14 +230,17 @@ tuple<int, int> get_read_region_boundaries(BamAlignmentRecord const & record,
     return make_tuple(read_region_begin, read_region_end);
 }
 
+namespace seqan
+{
 //!\brief Overload appendValue for seqan::viewRecords, such that quality is checked
 // before appending a read
 void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
-                 seqan::BamAlignmentRecord const & rec)
+                 seqan::BamAlignmentRecord & rec)
 {
     if (!hasFlagQCNoPass(rec) && !hasFlagDuplicate(rec) && // passes QC
-        rec.mapQ >= 15)                                    // only fairly unique hits
+        rec.mapQ >= 5)                                    // only fairly unique hits
         records.push_back(rec);
+}
 }
 
 /*! Appends (reference) flanks to a sequence.
