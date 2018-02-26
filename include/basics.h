@@ -39,6 +39,26 @@ struct bamRecordNameLess
     }
 };
 
+//! Comparator for sorting BamAlignmentRecords by name (ascending).
+struct bamRecordNameLessSeqLessPrimFirst
+{
+    bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
+    {
+        if (lhs.qName == rhs.qName)
+        {
+            if (lhs.seq == rhs.seq)
+            {
+                if (hasFlagSecondary(lhs) || hasFlagSupplementary(lhs)) // primary first to be chosen by unique
+                    return false;
+                else
+                    return true;
+            }
+            return lhs.seq < rhs.seq;
+        }
+        return lhs.qName < rhs.qName;
+    }
+};
+
 //! Comparator for sorting BamAlignmentRecords by mapping quality (descending).
 struct bamRecordMapQGreater
 {
@@ -68,6 +88,15 @@ struct bamRecordEqual
     bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
     {
         return (lhs.qName == rhs.qName && lhs.flag == rhs.flag && lhs.beginPos == rhs.beginPos);
+    }
+};
+
+//! Comparator for sequence of BamAlignmentRecords
+struct bamRecordSeqEqual
+{
+    bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
+    {
+        return (lhs.seq == rhs.seq);
     }
 };
 
@@ -251,7 +280,7 @@ seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
  * because the pair is marked as aberrant, the mate is hunted in the bam file
  * (mateHunter - Snædis). If no mate is present in the bam file or the pair is
  * not abberant, a dummy mate (empty sequence) is appended to 'reads2'.
- * @param seq        The sequene to append the flanks to.
+ * @param seq        The sequence to append the flanks to.
  * @param fai_index  The FASTA index to be queried for the flanking sequence.
  * @param ref_length The length of the reference needed for function seqan::readRegion.
  * @param start      The start of the region to extract flanks for.
@@ -265,9 +294,11 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
                            seqan::BamIndex<seqan::Bai> const & bam_index)
 {
     // sort records by name
-    std::sort(records.begin(), records.end(), bamRecordNameLess());
-    Dna5QString dummy_seq{}; // read sequence for dummy record is an empty string
+    std::sort(records.begin(), records.end(), bamRecordNameLessSeqLessPrimFirst());
+    auto last = std::unique(records.begin(), records.end(), bamRecordSeqEqual());  // based on sequence to avoid mapping the same sequence
+    records.erase(last, records.end());
 
+    Dna5QString dummy_seq{}; // read sequence for dummy record is an empty string
     CharString id1; // stores last seen id
 
     for (unsigned i = 0; i < length(records); ++i)
@@ -283,7 +314,7 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
             id1 = records[i].qName;
             appendValue(reads1, seq);
         }
-        else if (records[i].qName == id1) // |ids1| = |ids2| + 1
+        else if (records[i].qName == id1 && records[i-1].pNext == records[i].beginPos) // found mate in list
         {
             appendValue(reads2, seq);
         }
@@ -293,7 +324,7 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
             // This only happens for two type of paired reads:
             // 1) The read is in a proper pair, but the mate is outside of our
             //    region of interest.
-            // 2) The read is an abbarrant mapping pair with his mate unmapped
+            // 2) The read is an aberrant mapping pair with his mate unmapped
             //    or mapped to another chromosome.
             // We ONLY want to hunt for mates of pairs of the 2. case, since those
             // can be interesting, e.g. for novel insertions.
@@ -303,7 +334,7 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
                 // hunt mate for read in records[i - 1]
                 BamAlignmentRecord mate = mateHunt(records[i - 1], bam_file, bam_index);
 
-                if (mate.qName == records[i - 1].qName) // mateHunt was successfull
+                if (mate.qName == records[i - 1].qName) // mateHunt was successful
                 {
                     Dna5QString mseq = mate.seq;
                     assignQualities(mseq, mate.qual);
@@ -337,7 +368,7 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
         // hunt mate for read in records[i - 1]
         BamAlignmentRecord mate = mateHunt(records[length(records) - 1], bam_file, bam_index);
 
-        if (mate.qName == records[length(records) - 1].qName) // mateHunt was successfull
+        if (mate.qName == records[length(records) - 1].qName) // mateHunt was successful
         {
             Dna5QString mseq = mate.seq;
             assignQualities(mseq, mate.qual);
