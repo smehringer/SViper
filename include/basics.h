@@ -48,10 +48,7 @@ struct bamRecordNameLessSeqLessPrimFirst
         {
             if (lhs.seq == rhs.seq)
             {
-                if (hasFlagSecondary(lhs) || hasFlagSupplementary(lhs)) // primary first to be chosen by unique
-                    return false;
-                else
-                    return true;
+                return lhs.flag < rhs.flag; // secondary and supplementary flags are large -> primary first
             }
             return lhs.seq < rhs.seq;
         }
