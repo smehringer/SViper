@@ -1,7 +1,7 @@
 SViper
 =======
 
-This pipeline polishes deletions and isnertions called on long read data (ONT) using short exact reads for refinement.
+This pipeline polishes deletions and insertions called on long read data (ONT) using short exact reads for refinement.
 
 Installation
 ------------
@@ -11,6 +11,7 @@ For installation, simply clone the repo and use make to compile any utilities.
 ~~~~
 ~$ git clone git@github.com:smehringer/SViper.git
 ~$ cd SViper
+~$ export SEQAN_LIB="path/to/your/seqan/clone"
 ~$ make
 ~~~~
 
@@ -19,46 +20,35 @@ Note: You need a compiler that supports c++14.
 Dependencies
 ------------
 
-Currently, the polishing pipeline lacks a convinient long read pairwise alignment function. Therefore, the main program outputs a fasta file that needs to be mapped by a long read mapper of your choice.
-
 * Linux operating system
 * Code so far only tested for gcc 5.4.0
 * C++14 support
-* A long read mapper of your choice. Recommended: _minimap2_
+* The SeqAn C++ library
 
 - - - -
 
 Using SViper
 ---------------
 
-You can look at all the input requirements by calling the sviper help page
+You can look at all the input requirements by calling the sviper help page:
 
 ~~~~
 ~$ sviper -h
 ~~~~
 
-The usage of the whole polishing pipeline, needs a remapping step with a long read mapper of your choice, though.
-An example of using sviper is the following:
+Examples:
 
-1. Call sviper
+Call sviper
 ~~~~
-~$ sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o example -g example.log
+~$ sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o polished_variants
 ~~~~
-This will output a `example.fa` file, that contains all the polished sequences for recalling refined variants.
+This will output a `polished_variants.vcf` file, that contains all the refined variants.
 
-2. Map polished sequences to reference
+Sometimes it is helpful to look at the polished sequence, e.g. with the IGV browser.
+In that case you want SViper to output the polished and aligned sequences in a bam file via the option `--output-polished-bam`:
 ~~~~
-~$ my-fav-mapper -input example.fa -r ref.fa
+~$ sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o polished_variants --output-polished-bam
 ~~~~
-This will output a sam or bam file that serves as input for the third step.
-
-3. Evaluate the mapping and create a **polished VCF file**
-IMPORTANT: The bam/sam file must be sorted by name in order for the evaluation to work correctly!
-~~~~
-~$ samtools sort -n mapping-output.bam > mapping-output.sortedByName.bam
-~$ evaluate_final_mapping mapping-output.sortedByName.bam variants.vcf
-~~~~
-This will output a file called `variants.vcf.polished.vcf` containing variants with the same ID but refined break points or even failures if the variant was "polished away" (see Interpreting the output).
 
 ### IMPORTANT
 
@@ -67,8 +57,7 @@ There are several requirements for using the polishing:
 1. The vcf file must be a structural variant format (tags instead of sequences, e.g. `<DEL>`). ALso the INFO field must include the END tag, giving the end position of the variant, as well as the SVLEN tag in case of insertions.
 2. The bam files must be indexed.
 3. The reference sequence (FASTA) must be indexed.
-4. BEOFRE you call `evaluate_final_mapping` you must sort the bam file by name!
-5. (Obvisoulsy, the bam files should correspond to the same individual/sample mapped to the given reference.)
+4. (Obvisoulsy, the bam files should correspond to the same individual/sample mapped to the given reference.)
 
 ### Input arguments:
 
@@ -85,25 +74,33 @@ There are several requirements for using the polishing:
 * `-r, --reference` (FA_FILE)
           The indexed (fai) reference file.
 
-* `-o, --output-fa` (FA_FILE)
-          A filename for the output file. NOTE: The current output is a fasta file, that contains the polished sequences for each variant. Since the final realignment is not part of this tool yet,The user must map the fasta file with a mapper of his choice (e.g. minimap2) and then call evaluate_final_alignment.
+* `-o, --output-prefix` (PREFIX)
+          A name for the output files. The current output is a log file and vcf file, that contains the polished
+          sequences for each variant.
 
 * `-g, --log-file` (TXT_FILE)
           A filename for the log file. Default: polishing.log.
 
 * `-k, --flanking-region` (INT)
           The flanking region in bp's around a breakpoint to be considered for polishing In range [50..1000]. Default: 400.
-
             ~~~~
                             start x             end y
             ------------------|------------------|----------------
                        !------------!      !------------!
-                      x-50        x+50    y-50         y+50
+                     x-400       x+400   y-400        y+400
             ~~~~
+
+* `-x, --coverage-short-reads` (INT)
+          The original short read mean coverage. This value is used to restrict short read coverage on extraction to
+          avoid mapping bias
+
+* `--output-polished-bam` (FLAG)
+          For debugging or manual inspection the polished reads can be written to a file.
+
 
 ### Utilities
 
-There are some utilities that come in handy when you want to look at specific variants and understand the substeps of polishing (or the preparation). You can make the utilities with `make`:
+There are some utilities that come in handy when you want to look at specific variants and understand the substeps of polishing (or the preparation). You can make the utilities with:
 
 ~~~~
 ~$ make utilities
