@@ -1,9 +1,5 @@
 #pragma once
 
-#include <fstream>
-
-static std::ofstream log_file;
-
 /*! A global struct containing all the important information.
  * This struct holds information needed throughout the polishing process and
  * also includes the most important functions (thresholds, computations etc.).

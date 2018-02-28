@@ -159,7 +159,6 @@ vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & read
     vector<Mapping_object> mobs;
     //mobs.resize(length(reads1)); TODO
 
-    #pragma omp parallel for
     for (unsigned ridx = 0; ridx < seqan::length(reads1); ++ridx) // for every read (pair)
     {
         Mapping_object mob(reads1[ridx], reads2[ridx], ref);
@@ -177,7 +176,6 @@ vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & read
                 mob.proper_pair = true;
         }
 
-        #pragma omp critical
         mobs.push_back(mob);
     }
 

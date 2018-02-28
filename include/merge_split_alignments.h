@@ -370,7 +370,7 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
 #ifndef NDEBUG
         if (record_group.size() > 1)
         {
-            log_file << "Merging group of " << record_group.size() << " with name " << final_record.qName << "\t" << endl;
+            std::cerr << "Merging group of " << record_group.size() << " with name " << final_record.qName << "\t" << endl;
             for (auto const & rec : record_group)
                 log_file << "  -> "<< rec.qName << " " << rec.flag << " " << rec.rID << " " << rec.beginPos << " " << rec.mapQ << endl;
         }
@@ -393,9 +393,6 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
 
         if (supp_record.beginPos < prim_record.beginPos)
         { // ---supp-- before --final--
-#ifndef NDEBUG
-                log_file << "  -> ---supp-- before --final--" << endl;
-#endif
             if (compute_map_end_pos(final_record.beginPos, final_record.cigar) <= compute_map_end_pos(supp_record.beginPos, supp_record.cigar))
                 continue; // do not merge supp alignments that are completely covered
 
@@ -435,9 +432,6 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
         }
         else if (prim_record.beginPos < supp_record.beginPos)
         { // ---final-- before --supp--
-#ifndef NDEBUG
-                log_file << "  -> ---final-- before --supp--" << endl;
-#endif
             if (compute_map_end_pos(final_record.beginPos, final_record.cigar) >= compute_map_end_pos(supp_record.beginPos, supp_record.cigar))
                 continue; // do not merge supp alignments that are completely covered
 
@@ -473,14 +467,13 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
 
         if (length(prim_record.seq) != compute_fragment_length(prim_record.cigar))
         { // screwing with cigar was not successfull. Do not replace final_record
-            log_file << "[WARNING] CIGAR and sequence length don't match: "
-                     << length(prim_record.seq) << "(seq length) != "
-                     << compute_fragment_length(prim_record.cigar)
-                     << "(cigar length). Do not use merged record with name "
-                     << prim_record.qName
-                     << endl;
 #ifndef NDEBUG
-            // throw std::exception();
+            std::cerr << "[WARNING] CIGAR and sequence length don't match: "
+                      << length(prim_record.seq) << "(seq length) != "
+                      << compute_fragment_length(prim_record.cigar)
+                      << "(cigar length). Do not use merged record with name "
+                      << prim_record.qName
+                      << std::endl;
 #endif
         }
         else // screwing with cigar was successfull. Replace final_record
@@ -516,8 +509,8 @@ merge_alignments(vector<BamAlignmentRecord> const & records)
 #ifndef NDEBUG
         if (!record_group.empty() && // avoid segementation fault
             (record_group[record_group.size() - 1]).qName > rec.qName) // check if records are sorted
-        std::cout << "[ERROR] Merging alignments - Records are not sorted by name. "
-                  << " Merging will not be successfull in this case." << endl;
+        std::cerr << "[ERROR] Merging alignments - Records are not sorted by name. "
+                  << " Merging will not be successfull in this case." << std::endl;
 #endif
 
     }
