@@ -596,7 +596,7 @@ int main(int argc, char const ** argv)
     // -------------------------------------------------------------------------
     if (options.output_polished_bam)
     {
-        BamFileOut result_bam(context(*(short_read_file_handles[0]))); // The optional output bam file for polished reads
+        BamFileOut result_bam(context(*(long_read_file_handles[0]))); // The optional output bam file for polished reads
 
         if (!open_file_success(result_bam, toCString(options.output_prefix + "_polished_reads.bam")))
         {
