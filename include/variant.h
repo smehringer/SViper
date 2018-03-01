@@ -243,28 +243,30 @@ bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
                      }
                      );
 
-    if (has_variant) // then advance_in_cigar stopped at this variant
+    if (has_variant) // if true, then advance_in_cigar stopped at this cigar_pos
     {
         variant.ref_pos = ref_pos;
         variant.sv_length = (record.cigar[cigar_pos]).count;
 
+        if (variant.sv_type == SV_TYPE::INS)
+            variant.ref_pos_end = ref_pos;
+        else // DEL
+            variant.ref_pos_end = ref_pos + variant.sv_length;
+
         // refine info
-        std::regex svlen_re("SVLEN=[0-9]*;");
-        std::regex end_re("END=[0-9]*;");
-        std::regex seq_re("SEQ=[A-Za-z]*;");
+        std::regex svlen_re("SVLEN=[0-9]*");
+        std::regex end_re("END=[0-9]*");
+        std::regex seq_re("SEQ=[A-Za-z]*");
 
         if (std::regex_search(variant.info, svlen_re))
-            variant.info = std::regex_replace(variant.info, svlen_re, std::string("SVLEN=" + std::to_string(variant.sv_length) + ";"));
+            variant.info = std::regex_replace(variant.info, svlen_re, std::string("SVLEN=" + std::to_string(variant.sv_length)));
         else
             variant.info.append(std::string(";SVLEN=" + std::to_string(variant.sv_length)));
 
-        if (variant.sv_type == SV_TYPE::DEL)
-        {
-            if (std::regex_search(variant.info, end_re))
-                variant.info = std::regex_replace(variant.info, end_re, std::string("END=" + std::to_string(variant.ref_pos + variant.sv_length) + ";"));
-            else
-                variant.info.append(std::string(";END=" + std::to_string(variant.ref_pos + variant.sv_length)));
-        }
+        if (std::regex_search(variant.info, end_re))
+            variant.info = std::regex_replace(variant.info, end_re, std::string("END=" + std::to_string(variant.ref_pos_end)));
+        else
+            variant.info.append(std::string(";END=" + std::to_string(variant.ref_pos_end)));
 
         if (variant.sv_type == SV_TYPE::INS)
         {
@@ -272,7 +274,7 @@ bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
             ss << "SEQ=" << seqan::infix(record.seq, read_pos, read_pos + variant.sv_length);
 
             if (std::regex_search(variant.info, seq_re))
-               variant.info = std::regex_replace(variant.info, seq_re, ss.str() + ";");
+               variant.info = std::regex_replace(variant.info, seq_re, ss.str());
             else
                 variant.info.append(string(";" + ss.str()));
         }
