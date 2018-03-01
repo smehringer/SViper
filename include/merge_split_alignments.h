@@ -372,7 +372,7 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
         {
             std::cerr << "Merging group of " << record_group.size() << " with name " << final_record.qName << "\t" << endl;
             for (auto const & rec : record_group)
-                log_file << "  -> "<< rec.qName << " " << rec.flag << " " << rec.rID << " " << rec.beginPos << " " << rec.mapQ << endl;
+                std::cerr << "  -> "<< rec.qName << " " << rec.flag << " " << rec.rID << " " << rec.beginPos << " " << rec.mapQ << endl;
         }
 #endif
 
@@ -510,7 +510,7 @@ merge_alignments(vector<BamAlignmentRecord> const & records)
         if (!record_group.empty() && // avoid segementation fault
             (record_group[record_group.size() - 1]).qName > rec.qName) // check if records are sorted
         std::cerr << "[ERROR] Merging alignments - Records are not sorted by name. "
-                  << " Merging will not be successfull in this case." << std::endl;
+                  << " Merging will not be successful in this case." << std::endl;
 #endif
 
     }

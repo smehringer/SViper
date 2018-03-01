@@ -22,19 +22,23 @@ BamAlignmentRecord mateHunt(BamAlignmentRecord const & record,
     BamAlignmentRecord mate{}; // default/empty record
 
     bool hasAlignments = false;
-    if (!jumpToRegion(bam_file, hasAlignments, record.rNextId, record.pNext, record.pNext+1, bam_index))
+    if (!jumpToRegion(bam_file, hasAlignments, record.rNextId, record.pNext+1, record.pNext+2, bam_index))
     {
-        // log_file << "[ERROR] mateHunt - Could not jump to region "
-        //          << contigNames(context(bam_file))[record.rNextId] << ":" << record.pNext
-        //          << " to find a records mate." << std::endl;
+#ifndef NDEBUG
+        std::cerr << "[ERROR] mateHunt - Could not jump to region "
+                  << contigNames(context(bam_file))[record.rNextId] << ":" << record.pNext
+                  << " to find a records mate." << std::endl;
+#endif
         return mate;
     }
 
     if (!hasAlignments)
     {
-        // log_file << "[ERROR] mateHunt - Could not find any reads in region "
-        //          << contigNames(context(bam_file))[record.rNextId] << ":" << record.pNext
-        //          << " to find a records mate." << std::endl;
+#ifndef NDEBUG
+        std::cerr << "[ERROR] mateHunt - Could not find any reads in region "
+                  << contigNames(context(bam_file))[record.rNextId] << ":" << record.pNext
+                  << " to find a records mate." << std::endl;
+#endif
         return mate;
     }
 
