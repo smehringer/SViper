@@ -1,5 +1,24 @@
 #pragma once
 
+//!\brief Command line option struct
+struct CmdOptions
+{
+    bool verbose{false};
+    bool veryVerbose{false};
+    bool output_polished_bam{false};
+    int flanking_region{400}; // size of flanking region for breakpoints
+    int mean_coverage_of_short_reads{36}; // original coverage
+    int mean_insert_size_of_short_reads{550}; // original coverage
+    int length_of_short_reads{150}; // original coverage
+    std::string long_read_file_name;
+    std::string short_read_file_name;
+    std::string candidate_file_name;
+    std::string output_prefix;
+    std::string reference_file_name;
+    std::string log_file_name;
+};
+
+
 /*! A global struct containing all the important information.
  * This struct holds information needed throughout the polishing process and
  * also includes the most important functions (thresholds, computations etc.).
@@ -9,17 +28,32 @@
 struct SViperConfig
 {
     bool verbose{false};
+
+    int flanking_region{400}; // size of flanking region for breakpoints
+    int mean_coverage_of_short_reads{36}; // original coverage
+    int mean_insert_size_of_short_reads{550}; // original coverage
+    int length_of_short_reads{150}; // original coverage
+
+    unsigned ref_flank_length{500}; // length to flank to the consensus sequence with the reference
+
+    // mapping penalties for the final alignment
+    double const MM{90000};   // Match
+    double const MX{-80000};  // Mismatch
+    double const GE{-1};      // Gap extension
+    double const GO{-100000}; // Gap open
+
+    // polishing parameter
     bool fix_indels{false};
     bool only_proper_pairs{true};
     unsigned buffer{150};
 
-    // qualitiy statistics
-    double baseQ_mean{0}; // will be overriden once when reading in reads
-    double baseQ_std{1};  // will be overriden once when reading in reads
-    double mappQ_mean{0}; // will be overriden every round after mapping
-    double mappQ_std{1};  // will be overriden every round after mapping
+    // quality statistics
+    double baseQ_mean{0}; // will be overridden once when reading in reads
+    double baseQ_std{1};  // will be overridden once when reading in reads
+    double mappQ_mean{0}; // will be overridden every round after mapping
+    double mappQ_std{1};  // will be overridden every round after mapping
     double alpha{1}; // scaling factor such that mapping and base quality are comparable
-    double mean_coverage{0}; // will be overriden every round after mapping
+    double mean_coverage{0}; // will be overridden every round after mapping
     double min_coverage{4};
 
     /* Polishing statistics (total base count).
@@ -29,6 +63,20 @@ struct SViperConfig
     unsigned inserted_bases{0};
     unsigned deleted_bases{0};
     unsigned rounds{0};
+
+    SViperConfig(CmdOptions & options) :
+        verbose(options.verbose),
+        flanking_region(options.flanking_region),
+        mean_coverage_of_short_reads(options.mean_coverage_of_short_reads),
+        mean_insert_size_of_short_reads(options.mean_insert_size_of_short_reads),
+        length_of_short_reads(options.length_of_short_reads)
+    {}
+
+    bool insert_size_in_range(int end_pos_forward, int begin_pos_reverse) const
+    {
+        return (begin_pos_reverse - end_pos_forward > mean_insert_size_of_short_reads*0.5) &&
+               (begin_pos_reverse - end_pos_forward < mean_insert_size_of_short_reads*1.5);
+    }
 
     /* [used in fill_profiles
      * Returns the value to be added to the profile. A profile consists of counts

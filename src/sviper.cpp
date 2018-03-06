@@ -9,6 +9,7 @@
 
 #include <basics.h>
 #include <config.h>
+#include <evaluate_final_mapping.h>
 #include <merge_split_alignments.h>
 #include <polishing.h>
 #include <variant.h>
@@ -23,21 +24,6 @@
 
 using namespace std;
 using namespace seqan;
-
-struct CmdOptions
-{
-    bool verbose{false};
-    bool veryVerbose{false};
-    bool output_polished_bam{false};
-    int flanking_region{400}; // size of flanking region for breakpoints
-    int mean_coverage_of_short_reads{36}; // original coverage
-    string long_read_file_name;
-    string short_read_file_name;
-    string candidate_file_name;
-    string output_prefix;
-    string reference_file_name;
-    string log_file_name;
-};
 
 ArgumentParser::ParseResult
 parseCommandLine(CmdOptions & options, int argc, char const ** argv)
@@ -241,20 +227,22 @@ int main(int argc, char const ** argv)
         seqan::BamFileIn & long_read_bam = *(long_read_file_handles[omp_get_thread_num()]);
         seqan::FaiIndex & faiIndex = *(faidx_file_handles[omp_get_thread_num()]);
 
-        auto start = std::chrono::high_resolution_clock::now(); // capture time per variant
-
         if (var.alt_seq != "<DEL>" && var.alt_seq != "<INS>")
         {
-            localLog << "----------------------------------------------------------------------" << std::endl
+            #pragma omp critical
+            log_file << "----------------------------------------------------------------------" << std::endl
                      << " SKIP Variant " << var.id << " at " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
                      << "----------------------------------------------------------------------" << std::endl;
+            var.filter = "SKIP";
             continue;
         }
         if (var.sv_length > 1000000)
         {
-            localLog << "----------------------------------------------------------------------" << std::endl
+            #pragma omp critical
+            log_file << "----------------------------------------------------------------------" << std::endl
                      << " SKIP too long Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
                      << "----------------------------------------------------------------------" << std::endl;
+            var.filter = "SKIP";
             continue;
         }
 
@@ -269,6 +257,9 @@ int main(int argc, char const ** argv)
         {
             localLog << "[ ERROR ]: FAI index has no entry for reference name"
                      << var.ref_chrom << std::endl;
+            #pragma omp critical
+            log_file << localLog.str() << std::endl;
+            var.filter = "FAIL0";
             continue;
         }
 
@@ -290,6 +281,8 @@ int main(int argc, char const ** argv)
             localLog << "[ ERROR ]: No reference sequence named "
                      << var.ref_chrom << " in short read bam file." << std::endl;
             var.filter = "FAIL4";
+            #pragma omp critical
+            log_file << localLog.str() << std::endl;
             continue;
         }
 
@@ -298,6 +291,8 @@ int main(int argc, char const ** argv)
             localLog << "[ ERROR ]: No reference sequence named "
                      << var.ref_chrom << " in long read bam file." << std::endl;
             var.filter = "FAIL1";
+            #pragma omp critical
+            log_file << localLog.str() << std::endl;
             continue;
         }
 
@@ -321,6 +316,8 @@ int main(int argc, char const ** argv)
                      << min(ref_length, var.ref_pos_end + 50) << "or " << std::endl;
 
             var.filter = "FAIL1";
+            #pragma omp critical
+            log_file << localLog.str() << std::endl;
             continue;
         }
 
@@ -365,6 +362,8 @@ int main(int argc, char const ** argv)
                          << std::endl;
 
                 var.filter = "FAIL2";
+                #pragma omp critical
+                log_file << localLog.str() << std::endl;
                 continue;
             }
         }
@@ -411,13 +410,15 @@ int main(int argc, char const ** argv)
 
         if (length(supporting_sequences) == 0)
         {
-                localLog << "ERROR3: No fitting regions for a " << var.alt_seq
-                         << " in region " << var.ref_chrom << ":"
-                         << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
-                         << std::endl;
+            localLog << "ERROR3: No fitting regions for a " << var.alt_seq
+                     << " in region " << var.ref_chrom << ":"
+                     << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
+                     << std::endl;
 
-                var.filter = "FAIL3";
-                continue;
+            var.filter = "FAIL3";
+            #pragma omp critical
+            log_file << localLog.str() << std::endl;
+            continue;
         }
 
         // Build consensus of supporting read regions
@@ -439,7 +440,7 @@ int main(int argc, char const ** argv)
         vector<BamAlignmentRecord> short_reads;
         // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-region,
         // then extract reads for each break point separately.
-        if (ref_region_end - ref_region_start > options.flanking_region * 2 + 150) // 150 = illumina length
+        if (ref_region_end - ref_region_start > options.flanking_region * 2 + options.length_of_short_reads)
         {
             // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
             unsigned e = min(ref_length, var.ref_pos + options.flanking_region);
@@ -468,6 +469,8 @@ int main(int argc, char const ** argv)
                      << "-" << ref_region_end << std::endl;
 
             var.filter = "FAIL4";
+            #pragma omp critical
+            log_file << localLog.str() << std::endl;
             continue;
         }
 
@@ -477,19 +480,20 @@ int main(int argc, char const ** argv)
 
         // Flank consensus sequence
         // ---------------------------------------------------------------------
-        // Before polishing, append a reference flank of length 150 (illumina
-        // read length) to the conesnsus such that the reads find a high quality
-        // anchor for mapping.
-        String<char> id = "consensus";
+        // Before polishing, append a reference flank to the conesnsus such that
+        // the reads find a high quality anchor for mapping and pairs are correctly
+        // identified.
+        SViperConfig config{options};
+        config.ref_flank_length = 500;
+        config.buffer = 150;
         Dna5String flanked_consensus = append_ref_flanks(cns, faiIndex,
                                                          ref_fai_idx, ref_length,
-                                                         ref_region_start, ref_region_end, 150);
+                                                         ref_region_start, ref_region_end,
+                                                         config.buffer);
 
         // Polish flanked consensus sequence with short reads
         // ---------------------------------------------------------------------
-        SViperConfig config{}; // default
-        config.verbose = options.verbose;
-        compute_baseQ_stats(config, short_reads_1, short_reads_2); //TODO:: return wualities and assign to cinfig outside
+        compute_baseQ_stats(config, short_reads_1, short_reads_2); //TODO:: return qualities and assign to config outside
 
         localLog << "--- Short read base qualities: avg=" << config.baseQ_mean
                  << " stdev=" << config.baseQ_std << "." << std::endl;
@@ -511,68 +515,67 @@ int main(int argc, char const ** argv)
         Dna5String final_sequence = append_ref_flanks(polished_ref,
                                                       faiIndex, ref_fai_idx,
                                                       ref_length,
-                                                      ref_region_start - 150,
-                                                      ref_region_end + 150,
-                                                      350);
+                                                      ref_region_start - config.buffer,
+                                                      ref_region_end + config.buffer,
+                                                      config.ref_flank_length - config.buffer);
 
         // Align polished sequence to reference
         // ---------------------------------------------------------------------
         Dna5String ref_part;
         seqan::readRegion(ref_part, faiIndex, ref_fai_idx,
-                          max(0, ref_region_start - 500),
-                          min(ref_region_end + 500, ref_length));
+                          std::max(0u, ref_region_start - config.ref_flank_length),
+                          std::min(ref_region_end + config.ref_flank_length, static_cast<unsigned>(ref_length)));
 
         typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRead;
         typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRef;
         TGapsRef gapsRef(ref_part);
         TGapsRead gapsSeq(final_sequence);
 
-        int score = seqan::globalAlignment(gapsRef, gapsSeq,
-                                           seqan::Score<double, seqan::Simple>(20, -10, -1, -100),
-                                           seqan::AlignConfig<false, false, false, false>(),
-                                           seqan::AffineGaps());
+        double score = seqan::globalAlignment(gapsRef, gapsSeq,
+                                              seqan::Score<double, seqan::Simple>(config.MM, config.MX, config.GE, config.GO),
+                                              seqan::AlignConfig<false, false, false, false>(),
+                                              seqan::ConvexGaps());
 
         BamAlignmentRecord final_record{};
-        final_record.beginPos = max(0, ref_region_start - 500);
+        final_record.beginPos = std::max(0u, ref_region_start - config.ref_flank_length);
         final_record.seq = final_sequence;
-        final_record.mapQ = score;
         seqan::getIdByName(final_record.rID, seqan::contigNamesCache(seqan::context(long_read_bam)), var.ref_chrom);
         seqan::getCigarString(final_record.cigar, gapsRef, gapsSeq, 100000u); // 10000 to avoid N instead of D for split read
 
-        if (options.output_polished_bam)
-        {
-            std::string read_identifier = (string("polished_var") +
-                                           ":" + var.ref_chrom +
-                                           ":" + to_string(var.ref_pos) +
-                                           ":" + var.id); // this name is important for evaluating
-            final_record.qName = read_identifier;
-
-            #pragma omp critical
-            polished_reads.push_back(final_record);
-        }
 
         // Evaluate Alignment
         // ---------------------------------------------------------------------
         // If refine_variant fails, the variant is not supported anymore but remains unchanged.
         // If not, the variant now might have different start/end positions and other information
-        auto end = std::chrono::high_resolution_clock::now();
+
+        assign_quality(final_record, var, score, config); // assigns a score to record.mapQ and var.quality
 
         if (!refine_variant(final_record, var))
         {
             var.filter = "FAIL5";
             //assign_quality(record, var, false);
             localLog << "ERROR5: \"Polished away\" variant " << var.id << " at " << var.ref_chrom << ":"
-                     << var.ref_pos << "\t" << var.alt_seq << "\t[ "
-                     << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
+                     << var.ref_pos << "\t" << var.alt_seq << "\tScore:\t" << var.quality
                      << std::endl;
         }
         else
         {
             //assign_quality(record, var, true);
             localLog << "SUCCESS: Polished variant " << var.id << " at " << var.ref_chrom << ":"
-                     << var.ref_pos << "\t" << var.alt_seq << "\t[ "
-                     << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() << " s]"
+                     << var.ref_pos << "\t" << var.alt_seq << "\tScore:\t" << var.quality
                      << std::endl;
+        }
+
+        if (options.output_polished_bam)
+        {
+            std::string read_identifier = (string("polished_var") +
+                                           ":" + var.ref_chrom +
+                                           ":" + to_string(var.ref_pos) +
+                                           ":" + var.id);
+            final_record.qName = read_identifier;
+
+            #pragma omp critical
+            polished_reads.push_back(final_record);
         }
 
         #pragma omp critical

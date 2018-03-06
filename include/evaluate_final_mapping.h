@@ -1,75 +1,10 @@
 #pragma once
 
 #include <sstream>
-#include <regex>
-#include <string>
 
 #include <seqan/bam_io.h>
 
 #include <variant.h>
-
-/*! Computes the identity score for evaluation.
- * The identity score shall represent how similar the polished sequence is to
- * the reference. The score therefore is computed by taking the edit
- * distance (NM tag) and dividing it by the length of the sequence.
- * This actual identity score exculdes the one (true) variant found in the
- * polished sequence, since this is expected and the correpsonging edit distance
- * will be added to the measurement afterwards.
- * @param record The alignment record containing the alignment of the polished
- *               sequence to the reference.
- * @return Returns measurement as double in range [0,100].
- */
-double compute_identity_measure(seqan::BamAlignmentRecord const & record)
-{
-    seqan::BamTagsDict tagsDict(record.tags);
-    int id{-1};
-    seqan::findTagKey(id, tagsDict, "NM");
-
-    if (id == -1)
-        return -1;
-
-    double nm{0};
-    seqan::extractTagValue(nm, tagsDict, id);
-
-    return (1 - (nm/(seqan::length(record.seq) - 10000))) * 100;
-}
-
-
-/*! Computes the fuzzyness score for evaluation.
- * Since the edit distance of one big event (DEL/INS) can be the same as several
- * small ones, a second measurement is introduced for the evaluation of polishing.
- * The fuzzyness score represents the amount of events found in the polished
- * sequence alignment to the reference. It is computed by dividing the number of
- * events (DEL/INS) by the length of the alignment, subtracted off 1 (we want the
- * higher the better, analogous to the identity score).
- * NOTE: The higher the score the less fuzzy is the alignment and the better did
- *       did polishing work.
- * @param record The alignment record containing the alignment of the polished
- *               sequence to the reference.
- * @return Returns measurement as double in range [0,100].
- */
-double compute_fuzzyness_measure(seqan::BamAlignmentRecord const & record)
-{
-    unsigned count{0};
-
-    // go over the whole cigar and add up the number of insertions and deletions
-    unsigned cigar_pos{0};
-    int read_pos{-1};                // -1 because ref position is 0 based
-    int ref_pos{record.beginPos -1}; // -1 because ref position is 0 based
-
-    advance_in_cigar(cigar_pos,
-                     ref_pos,
-                     read_pos,
-                     record.cigar,
-                     [&] (int /**/, int /**/)
-                     {
-                        if ((record.cigar[cigar_pos]).operation != 'M')
-                            ++count; // count insertions and deletions
-                        return false; // never stop. Go over whole cigar
-                     });
-
-    return (1.0 - ((double)count / ((length(record.seq) - 10000) * 0.3 / 1.3) )) * 100.0;
-}
 
 /*! Assigns a variant the average of identity and fuzzyness score.
  * Based on the polsihed sequence alignment given in record
@@ -77,24 +12,92 @@ double compute_fuzzyness_measure(seqan::BamAlignmentRecord const & record)
  *               sequence to the reference.
  * @param variant The variant to be scored (Quality member will be replaced).
  */
-void assign_quality(seqan::BamAlignmentRecord const & record,
+void assign_quality(seqan::BamAlignmentRecord & record,
                     Variant & variant,
-                    bool true_variant)
+                    double align_score,
+                    SViperConfig const & config)
 {
-    double identity = compute_identity_measure(record);
-    double fuzzyness = compute_fuzzyness_measure(record);
+    unsigned count{0};
+    std::pair<int, unsigned> best_fitting_event{length(record.seq), 0};
 
-    // subtract variant length from score so to not penalize the variant
-    // that one actually expects (e.g. deletion of 1000bp's otherwise screws up
-    // the edit distance)
-    if (true_variant)
-        identity += ((double)variant.sv_length / (length(record.seq) - 10000)) * 100;
+    // go over the whole cigar and add up the number of insertions and deletions
+    // and look for the best fitting variant
+    unsigned cigar_pos{0};
+    int read_pos{-1};                // -1 because ref position is 0 based
+    int ref_pos{record.beginPos -1}; // -1 because ref position is 0 based
+    advance_in_cigar(cigar_pos,
+                     ref_pos,
+                     read_pos,
+                     record.cigar,
+                     [&] (int /**/, int /**/)
+                     {
+                        if ((record.cigar[cigar_pos]).operation != 'M')
+                        {
+                            ++count; // count insertions and deletions
+                            if (is_same_sv_type((record.cigar[cigar_pos]).operation, variant.sv_type))
+                            {
+                                if ((record.cigar[cigar_pos]).count > 30)
+                                {
+                                    if (get<0>(best_fitting_event) > std::abs(ref_pos - variant.ref_pos))
+                                        best_fitting_event = {std::abs(ref_pos - variant.ref_pos),
+                                                              (record.cigar[cigar_pos]).count};
+                                }
+                            }
+                        }
+                        return false; // never stop. Go over whole cigar
+                     });
 
-    // write seperate scores into info field of the variant
+    // Helper computations
+    //--------------------
+    // maximum number of bases that can be matched
+    double max_num_match = std::min(static_cast<unsigned>(length(record.seq)), seqan::getAlignmentLengthInRef(record));
+    // The reference flanks should always match and thus can be subtracted the score to avoid bias
+    double ref_flank_score = 2*config.ref_flank_length * config.MM;
+    // The penalty of an event of length get<1>(best_fitting_event) == convex cgst cost model
+    double event_penalty{0.0};
+    if (get<1>(best_fitting_event) != 0) // only if a fitting event was found
+        event_penalty = config.GO + config.GO/get<1>(best_fitting_event);
+    // The maximum alignment score that an alignment could reach,
+    // => all possible matches, but with expected event penalty
+    double max_align_score = (max_num_match * config.MM) + event_penalty;
+
+    // Score computation
+    // -----------------
+    double fuzzyness;
+    double identity;
+
+    if (ref_flank_score >= max_align_score) // should not happen since we flanked the variant region
+    {
+        SEQAN_FAIL("[ERROR] ref_flank_score %d is <= max_align_score %d.", ref_flank_score, max_align_score);
+        identity = 0;
+    }
+    else
+    {
+        // Identity score: compute the percentage that the alignment score reached
+        // regarding the maximum possible score, based on an all match alignment.
+        // Subtract the match score for the reference flanks because those will always match.
+        // Subtract the length of the best fitting event from the maximum match alignment
+        // since this is expected and should not weaken the score.
+        identity = std::max(0.0, (align_score - ref_flank_score) * 100.0 / (max_align_score - ref_flank_score));
+    }
+
+    if ((length(record.seq) - 2*config.ref_flank_length) == 0) // should not happen but avoid dividing by zero just in case
+    {
+        SEQAN_FAIL("[ERROR] length(record.seq) %d is == 2*config.ref_flank_length) %d.",
+                   length(record.seq), (2*config.ref_flank_length));
+        fuzzyness = 0;
+    }
+    else
+    {
+        fuzzyness = (1.0 - ((double)count / ((length(record.seq) - 2*config.ref_flank_length) * 0.06) )) * 100.0;
+    }
+
+    // write separate scores into info field of the variant
     std::ostringstream ss;
     ss << ";IDENTITIY_SCORE=" << identity
        << ";FUZZYNESS_SCORE=" << fuzzyness;
     variant.info.append(ss.str());
 
     variant.quality = (identity + fuzzyness) / 2;
+    record.mapQ = variant.quality;
 }
