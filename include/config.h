@@ -43,7 +43,6 @@ struct SViperConfig
 
     // polishing parameter
     bool fix_indels{false};
-    bool only_proper_pairs{true};
 
     // quality statistics
     double baseQ_mean{0}; // will be overridden once when reading in reads

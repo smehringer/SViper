@@ -105,7 +105,7 @@ void fill_profile(String<ProfileChar<Dna5, double> > & profile,
 
     for (auto const & mob : mobs) // for every read (pair)
     {
-        if (!config.only_proper_pairs || mob.proper_pair)
+        if (mob.proper_pair)
         {
             add_read_to_profile(profile, insertion_profiles, mob.gapsRead, mob.gapsRef, mob.proper_pair, mob.mapQRead, config);
 
