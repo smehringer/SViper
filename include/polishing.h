@@ -261,7 +261,7 @@ Dna5String polish(seqan::StringSet<seqan::Dna5QString> const & reads1,
 {
     seqan::Gaps<Dna5String, ArrayGaps> contigGaps(ref);
 
-    std::vector<Mapping_object> mobs = mapping(reads1, reads2, ref);
+    std::vector<Mapping_object> mobs = mapping(reads1, reads2, ref, config);
 
     compute_mappQ_stats(config, mobs);
     config.alpha = config.mappQ_mean/config.baseQ_mean;

@@ -30,8 +30,9 @@ struct SViperConfig
 
     int flanking_region{400}; // size of flanking region for breakpoints
     int mean_coverage_of_short_reads{36}; // original coverage
-    int mean_insert_size_of_short_reads{550}; // original coverage
-    int length_of_short_reads{150}; // original coverage
+    double mean_insert_size_of_short_reads{280.054};
+    double stdev_insert_size_of_short_reads{145.162};
+    int length_of_short_reads{150};
 
     unsigned ref_flank_length{500}; // length to flank to the consensus sequence with the reference
 
@@ -71,8 +72,12 @@ struct SViperConfig
 
     bool insert_size_in_range(int end_pos_forward, int begin_pos_reverse) const
     {
-        return (begin_pos_reverse - end_pos_forward > mean_insert_size_of_short_reads*0.5) &&
-               (begin_pos_reverse - end_pos_forward < mean_insert_size_of_short_reads*1.5);
+        double range_start = std::max(0.0, mean_insert_size_of_short_reads - 3 * stdev_insert_size_of_short_reads);
+        double range_end   = std::min(mean_insert_size_of_short_reads + 3 * mean_insert_size_of_short_reads,
+                                      mean_insert_size_of_short_reads + 3 * stdev_insert_size_of_short_reads);
+
+        return (begin_pos_reverse - end_pos_forward > range_start) &&
+               (begin_pos_reverse - end_pos_forward < range_end);
     }
 
     /* [used in fill_profiles

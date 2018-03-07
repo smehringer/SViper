@@ -152,7 +152,8 @@ inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRea
  */
 vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & reads1,
                                seqan::StringSet<seqan::Dna5QString> const & reads2,
-                               seqan::Dna5String & ref)
+                               seqan::Dna5String & ref,
+                               SViperConfig const & config)
 {
     SEQAN_ASSERT_EQ(seqan::length(reads1), seqan::length(reads2));
 
@@ -171,8 +172,10 @@ vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & read
         {
             mob.mapQMate = compute_mappQ(mob.gapsMate, mob.gapsRefMate);
             // check if proper pair
-            if ((!mob.read_is_rc && mob.mate_is_rc && gapsEndPos(mob.gapsRead) < gapsBeginPos(mob.gapsMate)) ||
-                (mob.read_is_rc && !mob.mate_is_rc && gapsEndPos(mob.gapsMate) < gapsBeginPos(mob.gapsRead)) ) // TODO check insert size
+            if ((!mob.read_is_rc && mob.mate_is_rc &&
+                    config.insert_size_in_range(gapsEndPos(mob.gapsRead), gapsBeginPos(mob.gapsMate))) ||
+                (mob.read_is_rc && !mob.mate_is_rc &&
+                    config.insert_size_in_range(gapsEndPos(mob.gapsMate), gapsBeginPos(mob.gapsRead))) )
                 mob.proper_pair = true;
         }
 
