@@ -202,11 +202,11 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
     SEQAN_ASSERT(length(profile) == length(contigGaps));
 
     Dna5String cns;
-    unsigned begin = toViewPosition(contigGaps, config.buffer);
-    unsigned end   = toViewPosition(contigGaps, length(source(contigGaps)) - config.buffer);
+    unsigned begin = toViewPosition(contigGaps, config.ref_flank_length);
+    unsigned end   = toViewPosition(contigGaps, length(source(contigGaps)) - config.ref_flank_length);
 
     // first append unpolished bases in the beginning (before begin)
-    append(cns, prefix(source(contigGaps), config.buffer));
+    append(cns, prefix(source(contigGaps), config.ref_flank_length));
 
     // now fix conesnsus
     for (unsigned i = begin; i < end; ++i)
@@ -245,8 +245,8 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
         }
     }
 
-    // at last, append config.buffer at the end
-    append(cns, suffix(source(contigGaps),  length(source(contigGaps)) - config.buffer));
+    // at last, append config.ref_flank_length at the end
+    append(cns, suffix(source(contigGaps),  length(source(contigGaps)) - config.ref_flank_length));
 
     if (!config.fix_indels)
         SEQAN_ASSERT_EQ(length(source(contigGaps)), length(cns));

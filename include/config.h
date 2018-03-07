@@ -18,7 +18,6 @@ struct CmdOptions
     std::string log_file_name;
 };
 
-
 /*! A global struct containing all the important information.
  * This struct holds information needed throughout the polishing process and
  * also includes the most important functions (thresholds, computations etc.).
@@ -45,7 +44,6 @@ struct SViperConfig
     // polishing parameter
     bool fix_indels{false};
     bool only_proper_pairs{true};
-    unsigned buffer{150};
 
     // quality statistics
     double baseQ_mean{0}; // will be overridden once when reading in reads

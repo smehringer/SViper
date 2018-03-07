@@ -485,11 +485,10 @@ int main(int argc, char const ** argv)
         // identified.
         SViperConfig config{options};
         config.ref_flank_length = 500;
-        config.buffer = 150;
         Dna5String flanked_consensus = append_ref_flanks(cns, faiIndex,
                                                          ref_fai_idx, ref_length,
                                                          ref_region_start, ref_region_end,
-                                                         config.buffer);
+                                                         config.ref_flank_length);
 
         // Polish flanked consensus sequence with short reads
         // ---------------------------------------------------------------------
@@ -509,16 +508,6 @@ int main(int argc, char const ** argv)
                  << config.rounds            << " rounds."
                  << std::endl;
 
-        // Flank polished sequence
-        // ---------------------------------------------------------------------
-        // Append large reference flank for better mapping results of long reads.
-        Dna5String final_sequence = append_ref_flanks(polished_ref,
-                                                      faiIndex, ref_fai_idx,
-                                                      ref_length,
-                                                      ref_region_start - config.buffer,
-                                                      ref_region_end + config.buffer,
-                                                      config.ref_flank_length - config.buffer);
-
         // Align polished sequence to reference
         // ---------------------------------------------------------------------
         Dna5String ref_part;
@@ -529,7 +518,7 @@ int main(int argc, char const ** argv)
         typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRead;
         typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRef;
         TGapsRef gapsRef(ref_part);
-        TGapsRead gapsSeq(final_sequence);
+        TGapsRead gapsSeq(polished_ref);
 
         double score = seqan::globalAlignment(gapsRef, gapsSeq,
                                               seqan::Score<double, seqan::Simple>(config.MM, config.MX, config.GE, config.GO),
@@ -538,7 +527,7 @@ int main(int argc, char const ** argv)
 
         BamAlignmentRecord final_record{};
         final_record.beginPos = std::max(0u, ref_region_start - config.ref_flank_length);
-        final_record.seq = final_sequence;
+        final_record.seq = polished_ref;
         seqan::getIdByName(final_record.rID, seqan::contigNamesCache(seqan::context(long_read_bam)), var.ref_chrom);
         seqan::getCigarString(final_record.cigar, gapsRef, gapsSeq, 100000u); // 10000 to avoid N instead of D for split read
 
