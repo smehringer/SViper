@@ -8,7 +8,8 @@ struct CmdOptions
     bool output_polished_bam{false};
     int flanking_region{400}; // size of flanking region for breakpoints
     int mean_coverage_of_short_reads{36}; // original coverage
-    int mean_insert_size_of_short_reads{550}; // original coverage
+    double mean_insert_size_of_short_reads{280.054}; // original coverage
+    double stdev_insert_size_of_short_reads{145.162};
     int length_of_short_reads{150}; // original coverage
     std::string long_read_file_name;
     std::string short_read_file_name;
@@ -28,11 +29,12 @@ struct SViperConfig
 {
     bool verbose{false};
 
-    int flanking_region{400}; // size of flanking region for breakpoints
-    int mean_coverage_of_short_reads{36}; // original coverage
-    double mean_insert_size_of_short_reads{280.054};
-    double stdev_insert_size_of_short_reads{145.162};
-    int length_of_short_reads{150};
+    // options to be set through the command line options
+    int flanking_region; // size of flanking region for breakpoints
+    int mean_coverage_of_short_reads; // original coverage
+    double mean_insert_size_of_short_reads;
+    double stdev_insert_size_of_short_reads;
+    int length_of_short_reads;
 
     unsigned ref_flank_length{500}; // length to flank to the consensus sequence with the reference
 
@@ -53,6 +55,7 @@ struct SViperConfig
     double alpha{1}; // scaling factor such that mapping and base quality are comparable
     double mean_coverage{0}; // will be overridden every round after mapping
     double min_coverage{4};
+    std::vector<unsigned> cov_profile;
 
     /* Polishing statistics (total base count).
      * Note: The total number can exceed the length easily since bases can be
@@ -67,6 +70,7 @@ struct SViperConfig
         flanking_region(options.flanking_region),
         mean_coverage_of_short_reads(options.mean_coverage_of_short_reads),
         mean_insert_size_of_short_reads(options.mean_insert_size_of_short_reads),
+        stdev_insert_size_of_short_reads(options.stdev_insert_size_of_short_reads),
         length_of_short_reads(options.length_of_short_reads)
     {}
 
@@ -97,11 +101,11 @@ struct SViperConfig
      * Determines whether short read information is to be trusted
      * TRUE: if base with given score will be substituted in consensus sequence
      * FALSE: else*/
-    bool score_passes_threshold(double const & score) const
+    bool score_passes_threshold(double const & score, unsigned const pos) const
     {
-        /* return true if score is at least as good as half the mean coverage
-         * of bases with half as good quality as the mean quality*/
-        return score >= (std::max(min_coverage, mean_coverage/2) * (baseQ_mean + mappQ_mean/alpha) / 4);
+        /* return true if score is at least as good as half the coverage at this pos
+         * of bases with half as good quality as the mean quality. */
+        return score >= (std::max(min_coverage, (double)cov_profile[pos]/2) * (baseQ_mean + mappQ_mean/alpha) / 4);
     }
 
     /* Allowed Length Deviation.

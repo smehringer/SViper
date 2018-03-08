@@ -18,6 +18,7 @@ using namespace std;
 using namespace seqan;
 
 inline void add_base_to_profile(String<ProfileChar<Dna5, double> > & profile,
+                                std::vector<unsigned> & cov_profile,
                                 unsigned pos,
                                 Dna5Q base,
                                 double mapQ,
@@ -25,24 +26,34 @@ inline void add_base_to_profile(String<ProfileChar<Dna5, double> > & profile,
                                 SViperConfig const & config)
 {
     if (length(profile) <= pos)
+    {
         resize(profile, pos + 1);
+        resize(cov_profile, pos + 1);
+    }
 
     profile[pos].count[ordValue(base)] += config.add_to_profile(getQualityValue(base), mapQ, paired);
+    ++cov_profile[pos];
 }
 
 inline void add_gap_to_profile(String<ProfileChar<Dna5, double> > & profile,
+                               std::vector<unsigned> & cov_profile,
                                unsigned pos,
                                double mapQ,
                                bool paired,
                                SViperConfig const & config)
 {
     if (length(profile) <= pos)
+    {
         resize(profile, pos + 1);
+        resize(cov_profile, pos + 1);
+    }
 
     profile[pos].count[5] += config.add_to_profile(config.baseQ_mean, mapQ, paired);
+    ++cov_profile[pos];
 }
 
 inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
+                                std::vector<unsigned> & cov_profile,
                                 vector<String<ProfileChar<Dna5, double> >> & ins_profiles,
                                 Gaps<Dna5QString, ArrayGaps> const & gapsRead,
                                 Gaps<Dna5String, ArrayGaps> const & gapsRef,
@@ -51,6 +62,9 @@ inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
                                 SViperConfig const & config)
 {
     SEQAN_ASSERT_EQ(length(gapsRead), length(gapsRef));
+
+    std::vector<unsigned> insertion_cov_dummy;
+    insertion_cov_dummy.resize(length(gapsRef));
 
     unsigned begin = max(gapsBeginPos(gapsRef), gapsBeginPos(gapsRead));
     unsigned end = min(gapsEndPos(gapsRef), gapsEndPos(gapsRead));
@@ -69,29 +83,30 @@ inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
             {
                 SEQAN_ASSERT(!isGap(gapsRead, idx)); // always handle full insertion
                 Dna5Q base = (source(gapsRead))[toSourcePosition(gapsRead, idx)];
-                add_base_to_profile(ins_profiles[pos_in_ref], ins_pos, base, mapQ, paired, config);
+                add_base_to_profile(ins_profiles[pos_in_ref], insertion_cov_dummy, ins_pos, base, mapQ, paired, config);
                 ++idx; ++ins_pos;
             }
         }
         else
         {
             if (!isGap(gapsRef, idx + 1)) // no insertion happened between idx and idx + 1
-                add_gap_to_profile(ins_profiles[pos_in_ref], 0, mapQ, paired, config);
+                add_gap_to_profile(ins_profiles[pos_in_ref], insertion_cov_dummy, 0, mapQ, paired, config);
         }
 
         if (!isGap(gapsRead, idx))
         {
             Dna5Q base = (source(gapsRead))[toSourcePosition(gapsRead, idx)];
-            add_base_to_profile(profile, pos_in_ref, base, mapQ, paired, config);
+            add_base_to_profile(profile, cov_profile, pos_in_ref, base, mapQ, paired, config);
         }
         else
         {
-            add_gap_to_profile(profile, pos_in_ref, mapQ, paired, config);
+            add_gap_to_profile(profile, cov_profile, pos_in_ref, mapQ, paired, config);
         }
     }
 }
 
 void fill_profile(String<ProfileChar<Dna5, double> > & profile,
+                  std::vector<unsigned> & cov_profile,
                   Gaps<Dna5String, ArrayGaps> & gapsRef,
                   vector<Mapping_object> const & mobs,
                   SViperConfig const & config)
@@ -107,10 +122,10 @@ void fill_profile(String<ProfileChar<Dna5, double> > & profile,
     {
         if (mob.proper_pair)
         {
-            add_read_to_profile(profile, insertion_profiles, mob.gapsRead, mob.gapsRef, mob.proper_pair, mob.mapQRead, config);
+            add_read_to_profile(profile, cov_profile, insertion_profiles, mob.gapsRead, mob.gapsRef, mob.proper_pair, mob.mapQRead, config);
 
             if (mob.hasMate())
-                add_read_to_profile(profile, insertion_profiles, mob.gapsMate, mob.gapsRefMate, mob.proper_pair, mob.mapQMate, config);
+                add_read_to_profile(profile, cov_profile, insertion_profiles, mob.gapsMate, mob.gapsRefMate, mob.proper_pair, mob.mapQMate, config);
         }
     }
 
@@ -208,7 +223,7 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
     // first append unpolished bases in the beginning (before begin)
     append(cns, prefix(source(contigGaps), config.ref_flank_length));
 
-    // now fix conesnsus
+    // now fix consensus
     for (unsigned i = begin; i < end; ++i)
     {
         if (!config.fix_indels)       // if only substitutions are allowed
@@ -217,7 +232,7 @@ inline Dna5String consensus_from_profile(String<ProfileChar<Dna5, double> > cons
 
         int idx = getMaxIndex(profile[i]);
 
-        if (!config.score_passes_threshold(profile[i].count[idx]))
+        if (!config.score_passes_threshold(profile[i].count[idx], i))
         {
             if (!isGap(contigGaps, i))
                 appendValue(cns, source(contigGaps)[toSourcePosition(contigGaps, i)]);
@@ -268,16 +283,11 @@ Dna5String polish(seqan::StringSet<seqan::Dna5QString> const & reads1,
 
     seqan::String<seqan::ProfileChar<seqan::Dna5, double> > profile;
     seqan::resize(profile, seqan::length(ref));
+    config.cov_profile.clear();
+    seqan::resize(config.cov_profile, seqan::length(ref));
 
-    fill_profile(profile, contigGaps, mobs, config);
+    fill_profile(profile, config.cov_profile, contigGaps, mobs, config);
 
-    // if (config.verbose)
-    //     cout << "### MappQ avg: " << config.mappQ_mean << " and std: " << config.mappQ_std
-    //          << ". Cov: " << config.mean_coverage << endl;
-
-    // Do not correct bases to the left and right of the consensus sequences otherwise
-    // we extend the alignment with low coverage.
-    // Also skip 50 bp of the beginning because reads will map poorly there
     ref = consensus_from_profile(profile, contigGaps, config);
 
     return ref;

@@ -63,6 +63,18 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
         seqan::ArgParseArgument::INTEGER, "INT"));
 
     addOption(parser, seqan::ArgParseOption(
+        "", "median-ins-size-short-reads",
+        "The median of the short read insert size (end of read1 until beginning of read2). "
+        "This value is used to compute a threshold for error correction.",
+        seqan::ArgParseArgument::INTEGER, "INT"));
+
+    addOption(parser, seqan::ArgParseOption(
+        "", "stdev-ins-size-short-reads",
+        "The median of the short read insert size (end of read1 until beginning of read2). "
+        "This value is used to compute a threshold for error correction..",
+        seqan::ArgParseArgument::INTEGER, "INT"));
+
+    addOption(parser, seqan::ArgParseOption(
         "o", "output-prefix",
         "A name for the output files. The current output is a log file and vcf file, that contains the "
         "polished sequences for each variant.",
@@ -74,10 +86,6 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 
     addOption(parser, seqan::ArgParseOption(
         "", "output-polished-bam", "For debugging or manual inspection the polished reads can be written to a file."));
-
-    // addOption(parser, seqan::ArgParseOption(
-    //     "vv", "very-verbose",
-    //     "Turn on detailed information about the process and write out intermediate results."));
 
     setRequired(parser, "c");
     setRequired(parser, "l");
@@ -105,10 +113,6 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     getOptionValue(options.mean_coverage_of_short_reads, parser, "coverage-short-reads");
     options.verbose = isSet(parser, "verbose");
     options.output_polished_bam = isSet(parser, "output-polished-bam");
-    // options.veryVerbose = isSet(parser, "very-verbose");
-
-    //if (options.veryVerbose)
-    //    options.verbose = true;
 
     if (options.output_prefix.empty())
         options.output_prefix = options.candidate_file_name + "_polished";
@@ -507,6 +511,10 @@ int main(int argc, char const ** argv)
                  << config.inserted_bases    << " inserted bases. "
                  << config.rounds            << " rounds."
                  << std::endl;
+
+        for (auto const & cov : config.cov_profile)
+            localLog << cov << " ";
+        localLog << std::endl;
 
         // Align polished sequence to reference
         // ---------------------------------------------------------------------
