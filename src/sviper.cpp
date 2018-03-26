@@ -53,6 +53,11 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
         seqan::ArgParseArgument::INPUT_FILE, "FA_FILE"));
 
     addOption(parser, seqan::ArgParseOption(
+        "t", "threads",
+        "The threads to use.",
+        seqan::ArgParseArgument::INTEGER, "INT"));
+
+    addOption(parser, seqan::ArgParseOption(
         "k", "flanking-region",
         "The flanking region in bp's around a breakpoint to be considered for polishing",
         seqan::ArgParseArgument::INTEGER, "INT"));
@@ -96,6 +101,8 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     setMaxValue(parser, "k", "1000");
     setDefaultValue(parser, "k", "400");
 
+    setDefaultValue(parser, "t", std::thread::hardware_concurrency());
+
     // Parse command line.
     seqan::ArgumentParser::ParseResult res = seqan::parse(parser, argc, argv);
 
@@ -111,6 +118,7 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     getOptionValue(options.output_prefix, parser, "output-prefix");
     getOptionValue(options.flanking_region, parser, "flanking-region");
     getOptionValue(options.mean_coverage_of_short_reads, parser, "coverage-short-reads");
+    getOptionValue(options.threads, parser, "threads");
     options.verbose = isSet(parser, "verbose");
     options.output_polished_bam = isSet(parser, "output-polished-bam");
 
@@ -163,7 +171,7 @@ int main(int argc, char const ** argv)
 
     // Prepare file hangles for parallel computing
     // -------------------------------------------------------------------------
-    unsigned num_threads{std::thread::hardware_concurrency()};
+    unsigned num_threads{options.threads};
     omp_set_num_threads(num_threads);
 
     std::vector<std::unique_ptr<BamFileIn>> long_read_file_handles;
