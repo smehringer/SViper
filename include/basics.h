@@ -385,6 +385,9 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
 void cut_down_high_coverage(std::vector<seqan::BamAlignmentRecord> & short_reads,
                             int16_t mean_coverage_of_short_reads)
 {
+    if (short_reads.size() == 0)
+        return;
+
     std::vector<seqan::BamAlignmentRecord> tmp;
     std::sort(short_reads.begin(), short_reads.end(), bamRecordPosLessQualityGreater());
 
