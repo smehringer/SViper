@@ -98,9 +98,10 @@ inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRea
     typedef seqan::Gaps<seqan::Dna5QString, seqan::ArrayGaps> TGapsRead;
     typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRef;
 
-    int const MATCH = 3;
-    int const MISMATCH = -2;
-    int const GAP_OPEN = -3;
+    // BWA MEM 0.7.17 default parameters
+    int const MATCH = 1;
+    int const MISMATCH = -4;
+    int const GAP_OPEN = -6;
     int const GAP_EXT = -1;
 
     if (length(read) == 0)
