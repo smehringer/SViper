@@ -158,11 +158,11 @@ vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & read
         Mapping_object mob(reads1[ridx], reads2[ridx], ref);
 
         mob.read_is_rc = map_single_read(mob.gapsRead, mob.gapsRef, mob.read, ref, mob.mapQRead);
-        mob.mate_is_rc = map_single_read(mob.gapsMate, mob.gapsRefMate, mob.mate, ref, mob.mapQMate); // TODO:: move to inner if clause
 
         if (mob.hasMate())
         {
             // check if proper pair
+            mob.mate_is_rc = map_single_read(mob.gapsMate, mob.gapsRefMate, mob.mate, ref, mob.mapQMate); // TODO:: move to inner if clause
             if ((!mob.read_is_rc && mob.mate_is_rc &&
                     config.insert_size_in_range(gapsEndPos(mob.gapsRead), gapsBeginPos(mob.gapsMate))) ||
                 (mob.read_is_rc && !mob.mate_is_rc &&

@@ -306,17 +306,17 @@ Dna5String polish_to_perfection(StringSet<Dna5QString> const & reads1,
         old_ref = ref; // store prior result
         ref = polish(reads1, reads2, ref, config);
         ++config.rounds;
-        // break;
     }
 
     // after all substitutions has been corrected, correct insertions/deletions
     // a few times with only proper pairs
     config.fix_indels = true;
-    for (unsigned i= 0; i < 10; ++i)
+    clear(old_ref);
+    while (ref != old_ref && config.rounds < 30)
     {
+        old_ref = ref; // store prior result
         ref = polish(reads1, reads2, ref, config);
         ++config.rounds;
-        // break;
     }
 
     return ref;
