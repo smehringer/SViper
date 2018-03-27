@@ -20,19 +20,19 @@ const double ALLOWED_LENGTH_DEVIATION = 0.8;
 const double SCORE_DEVIATION = 0.05;
 //const double QUALITY_CUTOFF = 65.0;
 
-struct CmdOptions
+struct CmdOptionsCompareVcf
 {
     std::string vcf_file_name;
     std::string golden_vcf_file_name;
     unsigned score_cutoff;
 
-    CmdOptions() :
+    CmdOptionsCompareVcf() :
         score_cutoff(0)
     {}
 };
 
 seqan::ArgumentParser::ParseResult
-parseCommandLine(CmdOptions & options, int argc, char const ** argv)
+parseCommandLine(CmdOptionsCompareVcf & options, int argc, char const ** argv)
 {
     // Setup ArgumentParser.
     seqan::ArgumentParser parser("comparing_vcf_files");
@@ -104,7 +104,7 @@ unsigned sum(vector<unsigned> v)
 
 int main(int argc, const char ** argv)
 {
-    CmdOptions options;
+    CmdOptionsCompareVcf options;
     seqan::ArgumentParser::ParseResult res = parseCommandLine(options, argc, argv);
 
     if (res != seqan::ArgumentParser::PARSE_OK)
