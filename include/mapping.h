@@ -67,17 +67,6 @@ inline int gapsBeginPos(seqan::Gaps<string_type, seqan::ArrayGaps> const & gaps)
     return seqan::countLeadingGaps(gaps);
 }
 
-//! Computes the mapping quality score: The PHRED quality of the edit-distance/length.
-double compute_mappQ(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRead,
-                     seqan::Gaps<Dna5String, seqan::ArrayGaps>  & gapsRef)
-{
-    double edit_distance = seqan::countGaps(gapsRead, seqan::countLeadingGaps(gapsRead))
-                           - seqan::countTrailingGaps(gapsRead) +
-                           seqan::countGaps(gapsRef, seqan::countLeadingGaps(gapsRef))
-                           - seqan::countTrailingGaps(gapsRef);
-    return (-10 * std::log10((edit_distance + 1)/(2*length(seqan::source(gapsRead))))); // +1 pseusocount
-}
-
 /*! Maps a single sequence (read) to a reference (ref).
  * This function takes a read sequence as input (`read`) and computes two
  * pairwise alignments against the reference (`ref`). One with the original
@@ -93,7 +82,8 @@ double compute_mappQ(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRead,
 inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsReadOut,
                             seqan::Gaps<Dna5String, seqan::ArrayGaps> & gapsRefOut,
                             seqan::Dna5QString & read,
-                            seqan::Dna5String & ref)
+                            seqan::Dna5String & ref,
+                            double & mapQ)
 {
     typedef seqan::Gaps<seqan::Dna5QString, seqan::ArrayGaps> TGapsRead;
     typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRef;
@@ -130,6 +120,7 @@ inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRea
     {
         seqan::copyGaps(gapsReadOut, gapsRead);
         seqan::copyGaps(gapsRefOut, gapsRef);
+        mapQ = std::max(0, score); // avoid negative values in pileup
         return false;
     }
     else // reverse strand
@@ -138,6 +129,7 @@ inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRea
         seqan::assignSource(gapsReadOut, read); // reassign gaps source to rc read
         seqan::copyGaps(gapsReadOut, gapsReadRC);
         seqan::copyGaps(gapsRefOut, gapsRefRC);
+        mapQ = std::max(0, scoreRC); // avoid negative values in pileup.
         return true;
     }
 }
@@ -165,13 +157,11 @@ vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & read
     {
         Mapping_object mob(reads1[ridx], reads2[ridx], ref);
 
-        mob.read_is_rc = map_single_read(mob.gapsRead, mob.gapsRef, mob.read, ref);
-        mob.mate_is_rc = map_single_read(mob.gapsMate, mob.gapsRefMate, mob.mate, ref); // TODO:: move to inner if clause
-        mob.mapQRead = compute_mappQ(mob.gapsRead, mob.gapsRef);
+        mob.read_is_rc = map_single_read(mob.gapsRead, mob.gapsRef, mob.read, ref, mob.mapQRead);
+        mob.mate_is_rc = map_single_read(mob.gapsMate, mob.gapsRefMate, mob.mate, ref, mob.mapQMate); // TODO:: move to inner if clause
 
         if (mob.hasMate())
         {
-            mob.mapQMate = compute_mappQ(mob.gapsMate, mob.gapsRefMate);
             // check if proper pair
             if ((!mob.read_is_rc && mob.mate_is_rc &&
                     config.insert_size_in_range(gapsEndPos(mob.gapsRead), gapsBeginPos(mob.gapsMate))) ||

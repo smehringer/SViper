@@ -1,5 +1,7 @@
 #pragma once
 
+#include <seqan/align.h>
+
 //!\brief Command line option struct
 struct CmdOptions
 {
@@ -94,8 +96,8 @@ struct SViperConfig
                           bool is_in_propair_pair) const
     {
         if (is_in_propair_pair)
-            return (baseQ + (mappQ / alpha)); // return double the score
-        return ((baseQ + (mappQ / alpha)) / 2);
+            return (baseQ * mappQ); // return double the score
+        return ((baseQ * mappQ) / 2);
     }
 
     /* [used in build_consensus_from_profile]
@@ -106,7 +108,7 @@ struct SViperConfig
     {
         /* return true if score is at least as good as half the coverage at this pos
          * of bases with half as good quality as the mean quality. */
-        return score >= (std::max(min_coverage, (double)cov_profile[pos]/2) * (baseQ_mean + mappQ_mean/alpha) / 4);
+        return score >= (std::max(min_coverage, (double)cov_profile[pos]/2) * (baseQ_mean * mappQ_mean));
     }
 
     /* Allowed Length Deviation.
