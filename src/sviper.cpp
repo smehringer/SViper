@@ -405,12 +405,19 @@ int main(int argc, char const ** argv)
             auto region = get_read_region_boundaries(supporting_records[i], ref_region_start, ref_region_end);
             Dna5String reg = seqan::infix(supporting_records[i].seq, get<0>(region), get<1>(region));
 
-            if (abs(static_cast<int32_t>(length(reg)) - 2*options.flanking_region) > options.flanking_region) // TODO:: this is only for DEL so far!!! cannot be the correct region
+            // For deletions, the expected size of the subsequence is that of
+            // the flanking region, since the rest is deleted. For insertions it
+            // is that of the flanking region + the insertion length.
+            int32_t expected_length{2*options.flanking_region};
+            if (var.sv_type == SV_TYPE::INS)
+                expected_length += var.sv_length;
+
+            if (abs(static_cast<int32_t>(length(reg)) - expected_length) > options.flanking_region)
             {
                 localLog << "------ Skip Read - Length:" << length(reg) << " Qual:" << supporting_records[i].mapQ
                          << " Name: "<< supporting_records[i].qName << endl;
                 ++maximum_long_reads;
-                continue; // do not use region
+                continue; // do not use under or oversized region
             }
 
             appendValue(supporting_sequences, reg);
