@@ -16,9 +16,7 @@ CXXFLAGS+=-std=c++14
 
 # Set this to include SeqAn libraries, either system wide
 # or download into current folder and set to:
-ifndef SEQAN_LIB
-$(error [ATTENTION] Variable SEQAN_LIB is not set. Please export the inlcude path)
-endif
+SEQAN_LIB := seqan/include # include submodule
 
 CXXFLAGS+=-I$(SEQAN_LIB) -DSEQAN_HAS_ZLIB=1
 
