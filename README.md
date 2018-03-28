@@ -9,9 +9,8 @@ Installation
 For installation, simply clone the repo and use make to compile any utilities.
 
 ~~~~
-~$ git clone git@github.com:smehringer/SViper.git
+~$ git clone --recursive git@github.com:smehringer/SViper.git
 ~$ cd SViper
-~$ export SEQAN_LIB="path/to/your/seqan/clone"
 ~$ make
 ~~~~
 
@@ -23,7 +22,7 @@ Dependencies
 * Linux operating system
 * Code so far only tested for gcc 5.4.0
 * C++14 support
-* The SeqAn C++ library
+* The SeqAn C++ library (included as a submodule, no installation required)
 
 - - - -
 
@@ -83,6 +82,7 @@ There are several requirements for using the polishing:
 
 * `-k, --flanking-region` (INT)
           The flanking region in bp's around a breakpoint to be considered for polishing In range [50..1000]. Default: 400.
+
             ~~~~
                             start x             end y
             ------------------|------------------|----------------
