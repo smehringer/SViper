@@ -118,6 +118,8 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     getOptionValue(options.output_prefix, parser, "output-prefix");
     getOptionValue(options.flanking_region, parser, "flanking-region");
     getOptionValue(options.mean_coverage_of_short_reads, parser, "coverage-short-reads");
+    getOptionValue(options.mean_insert_size_of_short_reads, parser, "median-ins-size-short-reads");
+    getOptionValue(options.stdev_insert_size_of_short_reads, parser, "stdev-ins-size-short-reads");
     getOptionValue(options.threads, parser, "threads");
     options.verbose = isSet(parser, "verbose");
     options.output_polished_bam = isSet(parser, "output-polished-bam");
@@ -592,7 +594,7 @@ int main(int argc, char const ** argv)
 
         #pragma omp critical
         log_file << localLog.str() << std::endl;
-    }
+    } // parallel for loop
 
     // Write refined variants to output file
     // -------------------------------------------------------------------------
