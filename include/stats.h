@@ -6,7 +6,7 @@
 
 #include <basics.h>
 
-std::pair<double, double> stats_insert_size(std::string const & bam_file_name)
+std::pair<double, double> stats_insert_size(std::string const & bam_file_name, std::string contig_name)
 {
     seqan::BamFileIn      bam_file;
     seqan::BamIndex<Bai>  bam_index;
@@ -24,7 +24,7 @@ std::pair<double, double> stats_insert_size(std::string const & bam_file_name)
     bool hasAlignments = false;
 
     int rID = 0;
-    if (!getIdByName(rID, contigNamesCache(context(bam_file)), "chr1"))
+    if (!getIdByName(rID, contigNamesCache(context(bam_file)), contig_name))
         return {-1.0, -1.0};
 
     if (!jumpToRegion(bam_file, hasAlignments, rID, 7100001, 12100002, bam_index))
