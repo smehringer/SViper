@@ -55,6 +55,8 @@ inline void add_gap_to_profile(String<ProfileChar<Dna5, double> > & profile,
 inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
                                 std::vector<unsigned> & cov_profile,
                                 vector<String<ProfileChar<Dna5, double> >> & ins_profiles,
+                                std::vector<std::vector<unsigned>> & ins_cov_profile,
+                                std::vector<unsigned> & no_ins_cov_profile,
                                 Gaps<Dna5QString, ArrayGaps> const & gapsRead,
                                 Gaps<Dna5String, ArrayGaps> const & gapsRef,
                                 bool paired,
@@ -62,9 +64,6 @@ inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
                                 SViperConfig const & config)
 {
     SEQAN_ASSERT_EQ(length(gapsRead), length(gapsRef));
-
-    std::vector<unsigned> insertion_cov_dummy;
-    insertion_cov_dummy.resize(length(gapsRef));
 
     unsigned begin = max(gapsBeginPos(gapsRef), gapsBeginPos(gapsRead));
     unsigned end = min(gapsEndPos(gapsRef), gapsEndPos(gapsRead));
@@ -83,14 +82,17 @@ inline void add_read_to_profile(String<ProfileChar<Dna5, double> > & profile,
             {
                 SEQAN_ASSERT(!isGap(gapsRead, idx)); // always handle full insertion
                 Dna5Q base = (source(gapsRead))[toSourcePosition(gapsRead, idx)];
-                add_base_to_profile(ins_profiles[pos_in_ref], insertion_cov_dummy, ins_pos, base, mapQ, paired, config);
+                add_base_to_profile(ins_profiles[pos_in_ref], ins_cov_profile[pos_in_ref], ins_pos, base, mapQ, paired, config);
                 ++idx; ++ins_pos;
             }
         }
         else
         {
             if (!isGap(gapsRef, idx + 1)) // no insertion happened between idx and idx + 1
-                add_gap_to_profile(ins_profiles[pos_in_ref], insertion_cov_dummy, 0, mapQ, paired, config);
+            {
+                add_gap_to_profile(ins_profiles[pos_in_ref], ins_cov_profile[pos_in_ref], 0, mapQ, paired, config);
+                ++no_ins_cov_profile[pos_in_ref];
+            }
         }
 
         if (!isGap(gapsRead, idx))
@@ -115,29 +117,51 @@ void fill_profile(String<ProfileChar<Dna5, double> > & profile,
     // every position. This will account for deletions and substitutions.
     // Insertions are first stored seperately because otherwise the positions
     // in read-ref-alignments are not "synchronized" and hard to handle.
-    vector<String<ProfileChar<Dna5, double> >> insertion_profiles;
+    std::vector<String<ProfileChar<Dna5, double> >> insertion_profiles;
+    std::vector<std::vector<unsigned>> insertion_cov_profiles;
     insertion_profiles.resize(length(profile)); // there can be an insertion after every position
+    insertion_cov_profiles.resize(length(profile));
+
+    // the ins_cov_profile count the coverage of insertions for every little profile
+    // but additionally, one needs to count the number of reads that span the position
+    // and do NOT display an insertion. Those are counted with non_insertion_coverage_count
+    // for each read and the insertion profile is updated accordingly.
+    std::vector<unsigned> non_insertion_coverage_count;
+    non_insertion_coverage_count.resize(length(profile));
+    for (auto & cov_count : non_insertion_coverage_count)
+        cov_count = 0;
 
     for (auto const & mob : mobs) // for every read (pair)
     {
         if (mob.proper_pair)
         {
-            add_read_to_profile(profile, cov_profile, insertion_profiles, mob.gapsRead, mob.gapsRef, mob.proper_pair, mob.mapQRead, config);
+            add_read_to_profile(profile, cov_profile, insertion_profiles,
+                                insertion_cov_profiles, non_insertion_coverage_count,
+                                mob.gapsRead, mob.gapsRef,
+                                mob.proper_pair, mob.mapQRead, config);
 
             if (mob.hasMate())
-                add_read_to_profile(profile, cov_profile, insertion_profiles, mob.gapsMate, mob.gapsRefMate, mob.proper_pair, mob.mapQMate, config);
+                add_read_to_profile(profile, cov_profile, insertion_profiles,
+                                    insertion_cov_profiles, non_insertion_coverage_count,
+                                    mob.gapsMate, mob.gapsRefMate, mob.proper_pair,
+                                    mob.mapQMate, config);
         }
     }
 
     // add insertions to profile
     unsigned pos{0}; // tracks the view position in gaps space of the reference
-    for (auto & pro : insertion_profiles)
+    for (unsigned pdx = 0; pdx < length(insertion_profiles); ++pdx)
     {
+        auto & pro = insertion_profiles[pdx];
+        auto & cov_pro = insertion_cov_profiles[pdx];
         if (length(pro) != 0) // if there is an insertion
         {
             for (auto & ins : pro) // update gap qualitities stored at the first position
                 ins.count[5] = pro[0].count[5];
+            for (unsigned cdx = 1; cdx < length(cov_pro); ++cdx) // update gap coverage. skip first because it is already updated
+                cov_pro[cdx] += non_insertion_coverage_count[pdx];
             insert(profile, pos, pro);
+            insert(cov_profile, pos, cov_pro);
             insertGaps(gapsRef, pos, length(pro));
             pos += length(pro) + 1; // +1 because we are also advancing one position anyway
         }
