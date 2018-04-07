@@ -529,8 +529,8 @@ int main(int argc, char const ** argv)
                  << config.rounds            << " rounds."
                  << std::endl;
 
-        for (auto const & cov : config.cov_profile)
-            localLog << cov << " ";
+        for (unsigned i = config.ref_flank_length; i < length(config.cov_profile) - config.ref_flank_length; ++i)
+            localLog << config.cov_profile[i] << " ";
         localLog << std::endl;
 
         // Align polished sequence to reference
@@ -545,10 +545,10 @@ int main(int argc, char const ** argv)
         TGapsRef gapsRef(ref_part);
         TGapsRead gapsSeq(polished_ref);
 
-        double score = seqan::globalAlignment(gapsRef, gapsSeq,
-                                              seqan::Score<double, seqan::Simple>(config.MM, config.MX, config.GE, config.GO),
-                                              seqan::AlignConfig<false, false, false, false>(),
-                                              seqan::ConvexGaps());
+        seqan::globalAlignment(gapsRef, gapsSeq,
+                               seqan::Score<double, seqan::Simple>(config.MM, config.MX, config.GE, config.GO),
+                               seqan::AlignConfig<false, false, false, false>(),
+                               seqan::ConvexGaps());
 
         BamAlignmentRecord final_record{};
         final_record.beginPos = std::max(0u, ref_region_start - config.ref_flank_length);
@@ -562,7 +562,7 @@ int main(int argc, char const ** argv)
         // If refine_variant fails, the variant is not supported anymore but remains unchanged.
         // If not, the variant now might have different start/end positions and other information
 
-        assign_quality(final_record, var, score, config); // assigns a score to record.mapQ and var.quality
+        assign_quality(final_record, var, config); // assigns a score to record.mapQ and var.quality
 
         if (!refine_variant(final_record, var))
         {
