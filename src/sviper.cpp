@@ -585,6 +585,7 @@ int main(int argc, char const ** argv)
             std::string read_identifier = (string("polished_var") +
                                            ":" + var.ref_chrom +
                                            ":" + to_string(var.ref_pos) +
+                                           ":" + to_string(var.ref_pos_end) +
                                            ":" + var.id);
             final_record.qName = read_identifier;
 
