@@ -346,14 +346,14 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
                 }
                 else
                 {
-                    // append dummy mate
-                    appendValue(reads2, dummy_seq);
+                    // remove read again since it cannot map in a proper pair
+                    erase(reads1, length(reads1) - 1);
                 }
             }
             else
             {
-                // append dummy mate
-                appendValue(reads2, dummy_seq);
+                // remove read again since it cannot map in a proper pair
+                erase(reads1, length(reads1) - 1);
             }
 
             // append rec to reads1. his mate is still be out there
