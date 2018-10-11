@@ -158,7 +158,7 @@ struct Variant
     std::string  filter;
     std::string  info;
     std::string  format;
-    std::string  samples;
+    std::vector<std::string>  samples;
 
     void write(std::ostream & stream)
     {
@@ -170,9 +170,10 @@ struct Variant
                << "\t" << quality
                << "\t" << filter
                << "\t" << info
-               << "\t" << format
-               << "\t" << samples
-               << "\n";
+               << "\t" << format;
+        for (auto sample : samples)
+            stream << "\t" << sample;
+        stream << "\n";
     }
 };
 
