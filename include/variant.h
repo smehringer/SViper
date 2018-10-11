@@ -23,42 +23,50 @@ struct Variant
     Variant(const std::string & line)
     {
         std::stringstream ss(line);
+        std::string dummy;
 
         // read variant line into member variables
         ss >> ref_chrom;
         ss >> ref_pos;
         if (ss.fail()) // e.g. when pos was '*' and cast to int failed
-            throw std::iostream::failure("ERROR when reading vcf file. Reference position could not be read for line " + line);
+            throw_verbose_exception("VCF-ERROR. ref_pos could not be read for line " + line);
         ss >> id;
         ss >> ref_seq;
         ss >> alt_seq;
         ss >> quality;
         if (ss.fail()) // e.g. when quality was '.' and cast to double failed
+        {
             ss.clear();
+            //ss >> dummy;
+        }
         ss >> filter;
         ss >> info;
         ss >> format;
-        ss >> samples;
+        while (!ss.eof()) // read the rest
+        {
+            ss >> dummy;
+            samples.push_back(dummy);
+        }
 
         // check if all information are given
         if (ref_chrom.empty())
-            throw std::iostream::failure("ERROR when reading vcf file. ref_chrom was not provided.");
+            throw_verbose_exception("VCF-ERROR. ref_chrom is empty.\nLine:" + line + "\n");
         if (ref_pos == -1)
-             throw std::iostream::failure("ERROR when reading vcf file. ref_pos was not provided.");
+             throw_verbose_exception("VCF-ERROR. ref_pos is empty.\nLine:" + line + "\n");
         if (id.empty())
-            throw std::iostream::failure("ERROR when reading vcf file. id was not provided.");
+            throw_verbose_exception("VCF-ERROR. id is empty.\nLine:" + line + "\n");
         if (ref_seq.empty())
-            throw std::iostream::failure("ERROR when reading vcf file. ref_seq was not provided.");
+            throw_verbose_exception("VCF-ERROR. ref_seq is empty.\nLine:" + line + "\n");
         if (alt_seq.empty())
-            throw std::iostream::failure("ERROR when reading vcf file. alt_seq was not provided.");
+            throw_verbose_exception("VCF-ERROR. alt_seq is empty.\nLine:" + line + "\n");
         if (filter.empty())
-            throw std::iostream::failure("ERROR when reading vcf file. filter was not provided.");
+            throw_verbose_exception("VCF-ERROR. filter is empty.\nLine:" + line + "\n");
         if (info.empty())
-            throw std::iostream::failure("ERROR when reading vcf file. info was not provided.");
+            throw_verbose_exception("VCF-ERROR. info is empty.\nLine:" + line + "\n");
         if (format.empty())
-            throw std::iostream::failure("ERROR when reading vcf file. format was not provided.");
+            throw_verbose_exception("VCF-ERROR. format is empty.\nLine:" + line + "\n");
         if (samples.empty())
-            throw std::iostream::failure("ERROR when reading vcf file. samples was not provided.");
+            throw_verbose_exception("VCF-ERROR. samples is empty.\nLine:" + line + "\n");
 
         // determine sv_type from alt_seq
         // this assumes the vcf format to be have the <TYPE> tags
@@ -76,18 +84,18 @@ struct Variant
             sv_type = SV_TYPE::UNKOWN;
 
         // determine END position from END info tag
-        auto end_n = info.find("END=");
-        auto len_n = info.find("SVLEN=");
+        auto const end_n = info.find("END=");
+        auto const len_n = info.find("SVLEN=");
 
         if (end_n != std::string::npos)
         {
             std::stringstream ss(info.substr(end_n+4, info.find(';', end_n) - end_n - 4));
             ss >> ref_pos_end;                 // store end temporarily
             if (ss.fail())
-                throw std::iostream::failure("ERROR when reading vcf file. END value "+
-                                             info.substr(end_n+4, info.find(';', end_n) - end_n - 4)+
-                                             " of variant " + ref_chrom + ":" + to_string(ref_pos) +
-                                             " could not be read.");
+                throw_verbose_exception("VCF-ERROR. END value "+
+                                        info.substr(end_n+4, info.find(';', end_n) - end_n - 4)+
+                                        " of variant " + ref_chrom + ":" + to_string(ref_pos) +
+                                        " could not be read.");
         }
 
         if (len_n != std::string::npos &&
@@ -97,10 +105,10 @@ struct Variant
             std::stringstream ss(info.substr(len_n+6, info.find(';', len_n) - len_n - 6));
             ss >> sv_length;
             if (ss.fail())
-                throw std::iostream::failure("ERROR when reading vcf file. SVLEN value "+
-                                             info.substr(len_n+6, info.find(';', len_n) - len_n - 6)+
-                                             " of variant " + ref_chrom + ":" + to_string(ref_pos) +
-                                             " could not be read.");
+                throw_verbose_exception("VCF-ERROR. SVLEN value "+
+                                        info.substr(len_n+6, info.find(';', len_n) - len_n - 6)+
+                                        " of variant " + ref_chrom + ":" + to_string(ref_pos) +
+                                        " could not be read.");
             sv_length = std::abs(sv_length); // some tools report a negative length since bases were deleted
 
             if (end_n == std::string::npos) // no end tag but sv_len tag
@@ -115,15 +123,21 @@ struct Variant
         {
             if (end_n == std::string::npos)
             {
-                throw std::iostream::failure(string("ERROR when reading vcf file.") +
-                                             " neither END nor SVLEN tag not found in info field of variant "+
-                                             ref_chrom + ":" + to_string(ref_pos) + "." +
-                                             " INFO: " + info + "."
-                                             );
+                throw_verbose_exception("VCF-ERROR."
+                                        "neither END nor SVLEN tag not found in info field.");
             }
 
             sv_length = ref_pos_end - ref_pos; // calculate actual length
         }
+
+    }
+
+    void throw_verbose_exception(std::string const & what)
+    {
+        ostringstream os;
+        os << what << "Read: ";
+        (*this).write(os);
+        throw std::iostream::failure(os.str());
     }
 
     Variant() = default;
