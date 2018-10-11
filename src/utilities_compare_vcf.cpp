@@ -116,13 +116,13 @@ int main(int argc, const char ** argv)
 
     if (!vcf_file.is_open())
     {
-        cerr << "[ERROR] Could not open file " << argv[1] << endl;
+        cerr << "[ERROR] Could not open file " << options.vcf_file_name << endl;
         return 1;
     }
 
     if (!vcf_file_golden.is_open())
     {
-        cerr << "[ERROR] Could not open file " << argv[2] << endl;
+        cerr << "[ERROR] Could not open file " << options.golden_vcf_file_name << endl;
         vcf_file.close();
         return 1;
     }
@@ -167,6 +167,7 @@ int main(int argc, const char ** argv)
              << "\t" << "SV_LENGTH"
              << "\t" << "SV_LENGTH_DIFF_TO_TRUTH"
              << "\t" << "POLISHING_SCORE"
+             << "\t" << "ERROR_CODE"
              << endl;
 
     while (true) // will be broken if one of the vcf file is at end
@@ -185,7 +186,8 @@ int main(int argc, const char ** argv)
                      << "\tNA"
                      << "\t" << curr_var_golden.sv_length
                      << "\tNA"
-                     << "\t" << curr_var_golden.quality
+                     << "\tNA"
+                     << "\tNA"
                      << endl;
 
             if (!getline(vcf_file_golden, dummy_line))
@@ -218,6 +220,7 @@ int main(int argc, const char ** argv)
                          << "\t" << curr_var.sv_length
                          << "\t" << (curr_var.sv_length - curr_var_golden.sv_length)
                          << "\t" << curr_var.quality
+                         << "\t" << curr_var.filter
                          << endl;
 
                 if (!getline(vcf_file_golden, dummy_line))
@@ -238,6 +241,7 @@ int main(int argc, const char ** argv)
                          << "\t" << curr_var.sv_length
                          << "\tNA"
                          << "\t" << curr_var.quality
+                         << "\t" << curr_var.filter
                          << endl;
             }
         }
@@ -259,6 +263,7 @@ int main(int argc, const char ** argv)
                          << "\t" << curr_var.sv_length
                          << "\t" << (curr_var.sv_length - curr_var_golden.sv_length)
                          << "\t" << curr_var.quality
+                         << "\t" << curr_var.filter
                          << endl;
 
                 if (!getline(vcf_file_golden, dummy_line))
@@ -279,6 +284,7 @@ int main(int argc, const char ** argv)
                          << "\t" << curr_var.sv_length
                          << "\tNA"
                          << "\t" << curr_var.quality
+                         << "\t" << curr_var.filter
                          << endl;
             }
         }
