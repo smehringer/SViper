@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <limits>
 
 #include <basics.h>
 #include <config.h>
@@ -557,8 +558,9 @@ int main(int argc, char const ** argv)
         final_record.beginPos = std::max(0u, ref_region_start - config.ref_flank_length);
         final_record.seq = polished_ref;
         seqan::getIdByName(final_record.rID, seqan::contigNamesCache(seqan::context(long_read_bam)), var.ref_chrom);
-        seqan::getCigarString(final_record.cigar, gapsRef, gapsSeq, 100000u); // 10000 to avoid N instead of D for split read
-
+        seqan::getCigarString(final_record.cigar, gapsRef, gapsSeq, std::numeric_limits<unsigned>::max());
+        // std::numeric_limits<unsigned>::max() because in function getCigarString the value is compared to type unsigned
+        // And we never want replace a Deletions D with N (short read exon identification)
 
         // Evaluate Alignment
         // ---------------------------------------------------------------------
