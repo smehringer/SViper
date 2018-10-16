@@ -250,7 +250,7 @@ int main(int argc, char const ** argv)
             var.filter = "SKIP";
             continue;
         }
-        if (var.sv_length > 1000000)
+        if (var.sv_length > 10000000)
         {
             #pragma omp critical
             log_file << "----------------------------------------------------------------------" << std::endl
@@ -277,9 +277,16 @@ int main(int argc, char const ** argv)
             continue;
         }
 
-        int ref_length = seqan::sequenceLength(faiIndex, ref_fai_idx);
-        int ref_region_start = std::max(0, var.ref_pos - options.flanking_region);
-        int ref_region_end   = std::min(ref_length, var.ref_pos_end + options.flanking_region);
+        // cash variables to avoid recomputing
+        // Note that the positions are one based/ since the VCF format is one based
+        int const ref_length       = seqan::sequenceLength(faiIndex, ref_fai_idx);
+        int const ref_region_start = std::max(1, var.ref_pos - options.flanking_region);
+        int const ref_region_end   = std::min(ref_length, var.ref_pos_end + options.flanking_region);
+
+        int const var_ref_pos_add50     = std::min(ref_length, var.ref_pos + 50);
+        int const var_ref_pos_sub50     = std::max(1, var.ref_pos - 50);
+        int const var_ref_pos_end_add50 = std::min(ref_length, var.ref_pos_end + 50);
+        int const var_ref_pos_end_sub50 = std::max(1, var.ref_pos_end - 50);
 
         localLog << "--- Reference region " << var.ref_chrom << ":"
                  << ref_region_start << "-" << ref_region_end << std::endl;
@@ -315,19 +322,15 @@ int main(int argc, char const ** argv)
         std::vector<seqan::BamAlignmentRecord> ont_reads;
 
         // extract overlapping the start breakpoint +-50 bp's
-        viewRecords(ont_reads, long_read_bam, long_read_bai, rID_long,
-                           max(0, var.ref_pos - 50), min(ref_length, var.ref_pos + 50));
+        viewRecords(ont_reads, long_read_bam, long_read_bai, rID_long, var_ref_pos_sub50, var_ref_pos_add50);
         // extract overlapping the end breakpoint +-50 bp's
-        viewRecords(ont_reads, long_read_bam, long_read_bai, rID_long,
-                           max(0, var.ref_pos_end - 50), min(ref_length, var.ref_pos_end + 50));
+        viewRecords(ont_reads, long_read_bam, long_read_bai, rID_long, var_ref_pos_end_sub50, var_ref_pos_end_add50);
 
         if (ont_reads.size() == 0)
         {
             localLog << "ERROR1: No long reads in reference region "
-                     << var.ref_chrom << ":" << max(0, var.ref_pos - 50) << "-"
-                     << min(ref_length, var.ref_pos + 50) << " or "
-                     << var.ref_chrom << ":" << max(0, var.ref_pos_end - 50) << "-"
-                     << min(ref_length, var.ref_pos_end + 50) << "or " << std::endl;
+                     << var.ref_chrom << ":" << var_ref_pos_sub50 << "-" << var_ref_pos_add50 << " or "
+                     << var.ref_chrom << ":" << var_ref_pos_end_sub50 << "-" << var_ref_pos_end_add50 << std::endl;
 
             var.filter = "FAIL1";
             #pragma omp critical
@@ -372,7 +375,7 @@ int main(int argc, char const ** argv)
             {
                 localLog << "ERROR2: No supporting long reads for a " << var.alt_seq
                          << " in region " << var.ref_chrom << ":"
-                         << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
+                         << var_ref_pos_sub50 << "-" << var_ref_pos_end_add50
                          << std::endl;
 
                 var.filter = "FAIL2";
@@ -433,7 +436,7 @@ int main(int argc, char const ** argv)
         {
             localLog << "ERROR3: No fitting regions for a " << var.alt_seq
                      << " in region " << var.ref_chrom << ":"
-                     << max(0, var.ref_pos - 50) << "-" << var.ref_pos_end + 50
+                     << var_ref_pos_sub50 << "-" << var_ref_pos_end_add50
                      << std::endl;
 
             var.filter = "FAIL3";
@@ -464,13 +467,13 @@ int main(int argc, char const ** argv)
         if (ref_region_end - ref_region_start > options.flanking_region * 2 + options.length_of_short_reads)
         {
             // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
-            unsigned e = min(ref_length, var.ref_pos + options.flanking_region);
+            unsigned e = std::min(ref_length, var.ref_pos + options.flanking_region);
             viewRecords(short_reads, short_read_bam, short_read_bai, rID_short, ref_region_start, e);
             cut_down_high_coverage(short_reads, options.mean_coverage_of_short_reads);
 
             // and right of the end of the variant [end-flanking_region, end+flanking_region]
             vector<BamAlignmentRecord> tmp_short_reads;
-            unsigned s = max(0, var.ref_pos_end - options.flanking_region);
+            unsigned s = std::max(1, var.ref_pos_end - options.flanking_region);
             viewRecords(tmp_short_reads, short_read_bam, short_read_bai, rID_short, s, ref_region_end);
             cut_down_high_coverage(tmp_short_reads, options.mean_coverage_of_short_reads);
             append(short_reads, tmp_short_reads);
@@ -537,7 +540,7 @@ int main(int argc, char const ** argv)
         // ---------------------------------------------------------------------
         Dna5String ref_part;
         seqan::readRegion(ref_part, faiIndex, ref_fai_idx,
-                          std::max(0u, ref_region_start - config.ref_flank_length),
+                          std::max(1u, ref_region_start - config.ref_flank_length),
                           std::min(ref_region_end + config.ref_flank_length, static_cast<unsigned>(ref_length)));
 
         typedef seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> TGapsRead;
