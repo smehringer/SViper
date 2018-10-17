@@ -320,81 +320,84 @@ int main(int argc, char const ** argv)
 
         // Extract long reads
         // ---------------------------------------------------------------------
-        std::vector<seqan::BamAlignmentRecord> ont_reads;
-
-        // extract overlapping the start breakpoint +-50 bp's
-        viewRecords(ont_reads, long_read_bam, long_read_bai, rID_long, var_ref_pos_sub50, var_ref_pos_add50);
-        // extract overlapping the end breakpoint +-50 bp's
-        viewRecords(ont_reads, long_read_bam, long_read_bai, rID_long, var_ref_pos_end_sub50, var_ref_pos_end_add50);
-
-        if (ont_reads.size() == 0)
-        {
-            localLog << "ERROR1: No long reads in reference region "
-                     << var.ref_chrom << ":" << var_ref_pos_sub50 << "-" << var_ref_pos_add50 << " or "
-                     << var.ref_chrom << ":" << var_ref_pos_end_sub50 << "-" << var_ref_pos_end_add50 << std::endl;
-
-            var.filter = "FAIL1";
-            #pragma omp critical
-            log_file << localLog.str() << std::endl;
-            continue;
-        }
-
-        localLog << "--- Extracted " << ont_reads.size() << " long read(s). May include duplicates. " << std::endl;
-
-        // Search for supporting reads
-        // ---------------------------------------------------------------------
         vector<BamAlignmentRecord> supporting_records;
-        // TODO check if var is not empty!
 
-        localLog << "--- Searching in (reference) region ["
-                 << (int)(var.ref_pos - DEV_POS * var.sv_length) << "-"
-                 << (int)(var.ref_pos + var.sv_length + DEV_POS * var.sv_length) << "]"
-                 << " for a variant of type " << var.alt_seq
-                 << " of length " << (int)(var.sv_length - DEV_SIZE * var.sv_length) << "-"
-                 << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << std::endl;
-
-        for (auto const & rec : ont_reads)
-            if (record_supports_variant(rec, var))
-                supporting_records.push_back(rec);
-
-        if (supporting_records.size() == 0)
         {
-            localLog << "--- No supporting reads that span the variant, start merging..." << std::endl;
+            std::vector<seqan::BamAlignmentRecord> long_reads;
 
-            // Merge supplementary alignments to primary
-            // ---------------------------------------------------------------------
-            std::sort(ont_reads.begin(), ont_reads.end(), bamRecordNameLess());
-            ont_reads = merge_alignments(ont_reads); // next to merging this will also get rid of duplicated reads
+            // extract overlapping the start breakpoint +-50 bp's
+            viewRecords(long_reads, long_read_bam, long_read_bai, rID_long, var_ref_pos_sub50, var_ref_pos_add50);
+            // extract overlapping the end breakpoint +-50 bp's
+            viewRecords(long_reads, long_read_bam, long_read_bai, rID_long, var_ref_pos_end_sub50, var_ref_pos_end_add50);
 
-            localLog << "--- After merging " << ont_reads.size() << " read(s) remain(s)." << std::endl;
-
-            for (auto const & rec : ont_reads)
-                if (record_supports_variant(rec, var))
-                    supporting_records.push_back(rec);
-
-            if (supporting_records.size() == 0) // there are none at all
+            if (long_reads.size() == 0)
             {
-                localLog << "ERROR2: No supporting long reads for a " << var.alt_seq
-                         << " in region " << var.ref_chrom << ":"
-                         << var_ref_pos_sub50 << "-" << var_ref_pos_end_add50
-                         << std::endl;
+                localLog << "ERROR1: No long reads in reference region "
+                         << var.ref_chrom << ":" << var_ref_pos_sub50 << "-" << var_ref_pos_add50 << " or "
+                         << var.ref_chrom << ":" << var_ref_pos_end_sub50 << "-" << var_ref_pos_end_add50 << std::endl;
 
-                var.filter = "FAIL2";
+                var.filter = "FAIL1";
                 #pragma omp critical
                 log_file << localLog.str() << std::endl;
                 continue;
             }
-        }
-        else
-        {
-            // remove duplicates
-            std::sort(supporting_records.begin(), supporting_records.end(), bamRecordNameLess());
-            auto last = std::unique(supporting_records.begin(), supporting_records.end(), bamRecordEqual());
-            supporting_records.erase(last, supporting_records.end());
-        }
 
-        localLog << "--- After searching for variant " << supporting_records.size()
-                 << " supporting read(s) remain." << std::endl;
+            localLog << "--- Extracted " << long_reads.size() << " long read(s). May include duplicates. " << std::endl;
+
+            // Search for supporting reads
+            // ---------------------------------------------------------------------
+            // TODO check if var is not empty!
+
+            localLog << "--- Searching in (reference) region ["
+                     << (int)(var.ref_pos - DEV_POS * var.sv_length) << "-"
+                     << (int)(var.ref_pos + var.sv_length + DEV_POS * var.sv_length) << "]"
+                     << " for a variant of type " << var.alt_seq
+                     << " of length " << (int)(var.sv_length - DEV_SIZE * var.sv_length) << "-"
+                     << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << std::endl;
+
+            for (auto const & rec : long_reads)
+                if (record_supports_variant(rec, var))
+                    supporting_records.push_back(rec);
+
+            if (supporting_records.size() == 0)
+            {
+                localLog << "--- No supporting reads that span the variant, start merging..." << std::endl;
+
+                // Merge supplementary alignments to primary
+                // ---------------------------------------------------------------------
+                std::sort(long_reads.begin(), long_reads.end(), bamRecordNameLess());
+                long_reads = merge_alignments(long_reads); // next to merging this will also get rid of duplicated reads
+
+                localLog << "--- After merging " << long_reads.size() << " read(s) remain(s)." << std::endl;
+
+                for (auto const & rec : long_reads)
+                    if (record_supports_variant(rec, var))
+                        supporting_records.push_back(rec);
+
+                if (supporting_records.size() == 0) // there are none at all
+                {
+                    localLog << "ERROR2: No supporting long reads for a " << var.alt_seq
+                             << " in region " << var.ref_chrom << ":"
+                             << var_ref_pos_sub50 << "-" << var_ref_pos_end_add50
+                             << std::endl;
+
+                    var.filter = "FAIL2";
+                    #pragma omp critical
+                    log_file << localLog.str() << std::endl;
+                    continue;
+                }
+            }
+            else
+            {
+                // remove duplicates
+                std::sort(supporting_records.begin(), supporting_records.end(), bamRecordNameLess());
+                auto last = std::unique(supporting_records.begin(), supporting_records.end(), bamRecordEqual());
+                supporting_records.erase(last, supporting_records.end());
+            }
+
+            localLog << "--- After searching for variant " << supporting_records.size()
+                     << " supporting read(s) remain." << std::endl;
+        } // scope of long_reads ends
 
         // Crop fasta sequence of each supporting read for consensus
         // ---------------------------------------------------------------------
@@ -457,81 +460,88 @@ int main(int argc, char const ** argv)
 
         localLog << "--- Built a consensus with a MSA of length " << length(cns) << "." << endl;
 
-        // Extract short reads in region
-        // ---------------------------------------------------------------------
-        StringSet<Dna5QString> short_reads_1; // reads (first in pair)
-        StringSet<Dna5QString> short_reads_2; // mates (second in pair)
+        // ~supporting_records();   // not used any more
+        // ~supporting_sequences(); // not used any more
 
-        vector<BamAlignmentRecord> short_reads;
-        // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-region,
-        // then extract reads for each break point separately.
-        if (ref_region_end - ref_region_start > options.flanking_region * 2 + options.length_of_short_reads)
-        {
-            // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
-            unsigned e = std::min(ref_length, var.ref_pos + options.flanking_region);
-            viewRecords(short_reads, short_read_bam, short_read_bai, rID_short, ref_region_start, e);
-            cut_down_high_coverage(short_reads, options.mean_coverage_of_short_reads);
-
-            // and right of the end of the variant [end-flanking_region, end+flanking_region]
-            vector<BamAlignmentRecord> tmp_short_reads;
-            unsigned s = std::max(1, var.ref_pos_end - options.flanking_region);
-            viewRecords(tmp_short_reads, short_read_bam, short_read_bai, rID_short, s, ref_region_end);
-            cut_down_high_coverage(tmp_short_reads, options.mean_coverage_of_short_reads);
-            append(short_reads, tmp_short_reads);
-        }
-        else
-        {
-            // extract reads left of the start of the variant [start-flanking_region, start]
-            viewRecords(short_reads, short_read_bam, short_read_bai, rID_short, ref_region_start, ref_region_end);
-            cut_down_high_coverage(short_reads, options.mean_coverage_of_short_reads);
-        }
-
-        if (short_reads.size() < 20)
-        {
-            localLog << "ERROR4: Not enough short reads (only " << short_reads.size()
-                     << ") for variant of type " << var.alt_seq
-                     << " in region " << var.ref_chrom << ":" << ref_region_start
-                     << "-" << ref_region_end << std::endl;
-
-            var.filter = "FAIL4";
-            #pragma omp critical
-            log_file << localLog.str() << std::endl;
-            continue;
-        }
-
-        records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, short_read_bai);
-
-        localLog << "--- Extracted " << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
-
-        // Flank consensus sequence
-        // ---------------------------------------------------------------------
-        // Before polishing, append a reference flank to the conesnsus such that
-        // the reads find a high quality anchor for mapping and pairs are correctly
-        // identified.
+        Dna5String polished_ref;
         SViperConfig config{options};
         config.ref_flank_length = 500;
-        Dna5String flanked_consensus = append_ref_flanks(cns, faiIndex,
-                                                         ref_fai_idx, ref_length,
-                                                         ref_region_start, ref_region_end,
-                                                         config.ref_flank_length);
 
-        // Polish flanked consensus sequence with short reads
-        // ---------------------------------------------------------------------
-        compute_baseQ_stats(config, short_reads_1, short_reads_2); //TODO:: return qualities and assign to config outside
+        {
+            StringSet<Dna5QString> short_reads_1; // reads (first in pair)
+            StringSet<Dna5QString> short_reads_2; // mates (second in pair)
 
-        localLog << "--- Short read base qualities: avg=" << config.baseQ_mean
-                 << " stdev=" << config.baseQ_std << "." << std::endl;
+            {
+                // Extract short reads in region
+                // ---------------------------------------------------------------------
+                vector<BamAlignmentRecord> short_reads;
+                // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-region,
+                // then extract reads for each break point separately.
+                if (ref_region_end - ref_region_start > options.flanking_region * 2 + options.length_of_short_reads)
+                {
+                    // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
+                    unsigned e = std::min(ref_length, var.ref_pos + options.flanking_region);
+                    viewRecords(short_reads, short_read_bam, short_read_bai, rID_short, ref_region_start, e);
+                    cut_down_high_coverage(short_reads, options.mean_coverage_of_short_reads);
 
-        Dna5String polished_ref = polish_to_perfection(short_reads_1,
-                                                       short_reads_2,
-                                                       flanked_consensus, config);
+                    // and right of the end of the variant [end-flanking_region, end+flanking_region]
+                    vector<BamAlignmentRecord> tmp_short_reads;
+                    unsigned s = std::max(1, var.ref_pos_end - options.flanking_region);
+                    viewRecords(tmp_short_reads, short_read_bam, short_read_bai, rID_short, s, ref_region_end);
+                    cut_down_high_coverage(tmp_short_reads, options.mean_coverage_of_short_reads);
+                    append(short_reads, tmp_short_reads);
+                }
+                else
+                {
+                    // extract reads left of the start of the variant [start-flanking_region, start]
+                    viewRecords(short_reads, short_read_bam, short_read_bai, rID_short, ref_region_start, ref_region_end);
+                    cut_down_high_coverage(short_reads, options.mean_coverage_of_short_reads);
+                }
 
-        localLog << "DONE POLISHING: Total of "
-                 << config.substituted_bases << " substituted, "
-                 << config.deleted_bases     << " deleted and "
-                 << config.inserted_bases    << " inserted bases. "
-                 << config.rounds            << " rounds."
-                 << std::endl;
+                if (short_reads.size() < 20)
+                {
+                    localLog << "ERROR4: Not enough short reads (only " << short_reads.size()
+                             << ") for variant of type " << var.alt_seq
+                             << " in region " << var.ref_chrom << ":" << ref_region_start
+                             << "-" << ref_region_end << std::endl;
+
+                    var.filter = "FAIL4";
+                    #pragma omp critical
+                    log_file << localLog.str() << std::endl;
+                    continue;
+                }
+
+                records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, short_read_bai);
+
+                localLog << "--- Extracted " << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
+            } // scope of short reads ends
+
+            // Flank consensus sequence
+            // ---------------------------------------------------------------------
+            // Before polishing, append a reference flank to the conesnsus such that
+            // the reads find a high quality anchor for mapping and pairs are correctly
+            // identified.
+            Dna5String flanked_consensus = append_ref_flanks(cns, faiIndex,
+                                                             ref_fai_idx, ref_length,
+                                                             ref_region_start, ref_region_end,
+                                                             config.ref_flank_length);
+
+            // Polish flanked consensus sequence with short reads
+            // ---------------------------------------------------------------------
+            compute_baseQ_stats(config, short_reads_1, short_reads_2); //TODO:: return qualities and assign to config outside
+
+            localLog << "--- Short read base qualities: avg=" << config.baseQ_mean
+                     << " stdev=" << config.baseQ_std << "." << std::endl;
+
+            polished_ref = polish_to_perfection(short_reads_1, short_reads_2, flanked_consensus, config);
+
+            localLog << "DONE POLISHING: Total of "
+                     << config.substituted_bases << " substituted, "
+                     << config.deleted_bases     << " deleted and "
+                     << config.inserted_bases    << " inserted bases. "
+                     << config.rounds            << " rounds."
+                     << std::endl;
+        } // scope of short_reads1 and short_reads2 ends
 
         for (unsigned i = config.ref_flank_length; i < length(config.cov_profile) - config.ref_flank_length; ++i)
             localLog << config.cov_profile[i] << " ";
