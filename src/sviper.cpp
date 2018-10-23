@@ -251,7 +251,7 @@ int main(int argc, char const ** argv)
             var.filter = "SKIP";
             continue;
         }
-        if (var.sv_length > 10000000)
+        if (var.sv_length > 1000000)
         {
             #pragma omp critical
             log_file << "----------------------------------------------------------------------" << std::endl
