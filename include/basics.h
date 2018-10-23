@@ -71,9 +71,14 @@ struct bamRecordQualityLess
 {
     bool operator()(BamAlignmentRecord const & lhs, BamAlignmentRecord const & rhs) const
     {
-        if (!hasFlagSupplementary(lhs) && !hasFlagSecondary(lhs)) // is primary
-            return true;
-        if (!hasFlagSupplementary(rhs) && !hasFlagSecondary(rhs)) // is primary
+        if (!hasFlagSupplementary(lhs) && !hasFlagSecondary(lhs))     // lhs is primary
+        {
+            if (!hasFlagSupplementary(rhs) && !hasFlagSecondary(rhs)) // rhs also primary
+                return lhs.mapQ > rhs.mapQ;
+            else
+                return true;
+        }
+        if (!hasFlagSupplementary(rhs) && !hasFlagSecondary(rhs))     // rhs is primary
             return false;
         return lhs.mapQ > rhs.mapQ;
     }
