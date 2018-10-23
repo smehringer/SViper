@@ -243,9 +243,11 @@ void transform_cigar_left_into_insertion(BamAlignmentRecord & record, int until)
 
 void turn_hard_clipping_to_soft_clipping(BamAlignmentRecord & prim, BamAlignmentRecord & supp)
 {
+    // Note: common hard clipping is removed from the cigar string.
+    //       hard clipping in one is turned to soft clipping by appending part
+    //       of the sequence of the other
     decltype(prim.seq) final_prim_seq;
     decltype(supp.seq) final_supp_seq;
-    // Note: common hard clipping is removed from the cigar string
 
     // beginning of alignment
     if ((prim.cigar[0]).operation == 'H')
@@ -365,7 +367,9 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
     std::sort(record_group.begin(), record_group.end(), bamRecordQualityLess());
 
     BamAlignmentRecord final_record = record_group[0];
-    // now check for supplementary alignment that can be merged
+
+    if (!(!hasFlagSupplementary(final_record) && !hasFlagSecondary(final_record))) // is not primary
+        return final_record; // we only want to merge supplementaries on primary, not supplementaries on each other
 
 #ifndef NDEBUG
         if (record_group.size() > 1)
@@ -376,6 +380,7 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
         }
 #endif
 
+    // now check for supplementary alignment that can be merged
     for (unsigned i = 1; i < record_group.size(); ++i)
     {
         // check if supplementary is fit for merging
