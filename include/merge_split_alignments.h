@@ -358,6 +358,15 @@ void turn_hard_clipping_to_soft_clipping(BamAlignmentRecord & prim, BamAlignment
     supp.seq = final_supp_seq;
 }
 
+uint32_t original_sequence_length(BamAlignmentRecord const & record)
+{
+    uint32_t sum{0};
+    for (auto const & cigar : record.cigar)
+        if (cigar.operation != 'D')
+            sum += cigar.count; // count H,S,M,I
+    return sum;
+}
+
 BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
 {
     SEQAN_ASSERT(record_group.size() > 0);
@@ -393,7 +402,24 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
         if (hasFlagRC(final_record) != hasFlagRC(record_group[i])) // orientation must be the same
             continue;
 
-        BamAlignmentRecord prim_record{final_record}; // copy so we do not screw with the final one right wawy
+        SEQAN_ASSERT_EQ(original_sequence_length(final_record), original_sequence_length(record_group[i]));
+        // TODO compile in when verbose
+        // if (original_sequence_length(final_record) != original_sequence_length(record_group[i]))
+        // {
+        //     std::cerr << "WARNING: The cigar string of records with the same "
+        //                  "read id should describe the same sequence, but the two records\n         "
+        //               << final_record.qName << "\t" << final_record.flag << "\t"
+        //               << final_record.rID << "\t" << final_record.beginPos << "\t"
+        //               << final_record.mapQ << "\t...\n         "
+        //               << record_group[i].qName << "\t" << record_group[i].flag << "\t"
+        //               << record_group[i].rID << "\t" << record_group[i].beginPos << "\t"
+        //               << record_group[i].mapQ << "\t...\n"
+        //               << "         do not as there cigars show lengths: (1) " << original_sequence_length(final_record)
+        //               << " and (2) " << original_sequence_length(record_group[i]) << std::endl;
+        //     continue;
+        // }
+
+        BamAlignmentRecord prim_record{final_record}; // copy so we do not screw with the final one right away
         BamAlignmentRecord supp_record{record_group[i]};
 
         if (supp_record.beginPos < prim_record.beginPos)
