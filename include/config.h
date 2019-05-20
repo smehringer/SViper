@@ -13,6 +13,8 @@ struct CmdOptions
     int mean_coverage_of_short_reads{36}; // original coverage
     double mean_insert_size_of_short_reads{280.054}; // original coverage
     double stdev_insert_size_of_short_reads{145.162};
+    double dev_size{0.6};
+    double dev_pos{0.5};
     int length_of_short_reads{150}; // original coverage
     std::string long_read_file_name;
     std::string short_read_file_name;
@@ -37,6 +39,8 @@ struct SViperConfig
     int mean_coverage_of_short_reads; // original coverage
     double mean_insert_size_of_short_reads;
     double stdev_insert_size_of_short_reads;
+    double dev_size{0.6};
+    double dev_pos{0.5};
     int length_of_short_reads;
 
     unsigned ref_flank_length{500}; // length to flank to the consensus sequence with the reference
@@ -74,6 +78,8 @@ struct SViperConfig
         mean_coverage_of_short_reads(options.mean_coverage_of_short_reads),
         mean_insert_size_of_short_reads(options.mean_insert_size_of_short_reads),
         stdev_insert_size_of_short_reads(options.stdev_insert_size_of_short_reads),
+        dev_size(options.dev_size),
+        dev_pos(options.dev_pos),
         length_of_short_reads(options.length_of_short_reads)
     {}
 
@@ -115,9 +121,9 @@ struct SViperConfig
      * Returns the minimum and maximum size a variant might have to be considered
      * the same variant. E.g. a deletion of size 1000 is considered polished but
      * the same, when the length is between 800-1200. */
-    bool sv_length_passes_threshold(unsigned length, unsigned golden_length)
+    bool sv_length_passes_threshold(unsigned length, unsigned golden_length) const
     {
-        return (length >= golden_length - (0.8 * golden_length) &&
-                length <= golden_length + (0.8 * golden_length));
+        return (length >= golden_length - (dev_size * golden_length) &&
+                length <= golden_length + (dev_size * golden_length));
     }
 };

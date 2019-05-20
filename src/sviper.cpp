@@ -81,6 +81,18 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
         seqan::ArgParseArgument::INTEGER, "INT"));
 
     addOption(parser, seqan::ArgParseOption(
+        "", "dev-size",
+        "The allowed deviation in size (proportional to the original size) of a polished variant compared "
+        "to the original variant.",
+        seqan::ArgParseArgument::DOUBLE, "DOUBLE"));
+
+    addOption(parser, seqan::ArgParseOption(
+        "", "dev-pos",
+        "The allowed deviation in position (proportional to the original position) of a polished variant compared "
+        "to the original variant.",
+        seqan::ArgParseArgument::DOUBLE, "DOUBLE"));
+
+    addOption(parser, seqan::ArgParseOption(
         "o", "output-prefix",
         "A name for the output files. The current output is a log file and vcf file, that contains the "
         "polished sequences for each variant.",
@@ -98,11 +110,21 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     setRequired(parser, "s");
     setRequired(parser, "r");
 
+    setAdvanced(getOption(parser, "dev-size"));
+    setAdvanced(getOption(parser, "dev-pos"));
+
+    setMinValue(parser, "dev-size", "0");
+    setMinValue(parser, "dev-pos",  "0");
+    setMaxValue(parser, "dev-size", "1");
+    setMaxValue(parser, "dev-pos",  "1");
+
     setMinValue(parser, "k", "50");
     setMaxValue(parser, "k", "1000");
     setDefaultValue(parser, "k", "400");
 
     setDefaultValue(parser, "t", std::thread::hardware_concurrency());
+    setDefaultValue(parser, "dev-size", 0.6);
+    setDefaultValue(parser, "dev-pos", 0.5);
 
     // Parse command line.
     seqan::ArgumentParser::ParseResult res = seqan::parse(parser, argc, argv);
@@ -121,6 +143,8 @@ parseCommandLine(CmdOptions & options, int argc, char const ** argv)
     getOptionValue(options.mean_coverage_of_short_reads, parser, "coverage-short-reads");
     getOptionValue(options.mean_insert_size_of_short_reads, parser, "median-ins-size-short-reads");
     getOptionValue(options.stdev_insert_size_of_short_reads, parser, "stdev-ins-size-short-reads");
+    getOptionValue(options.dev_size, parser, "dev-size");
+    getOptionValue(options.dev_pos, parser, "dev-pos");
     getOptionValue(options.threads, parser, "threads");
     options.verbose = isSet(parser, "verbose");
     options.output_polished_bam = isSet(parser, "output-polished-bam");
@@ -140,6 +164,9 @@ int main(int argc, char const ** argv)
 
     if (res != seqan::ArgumentParser::PARSE_OK)
         return res == seqan::ArgumentParser::PARSE_ERROR;
+
+
+    SViperConfig config{options};
 
     // Check files
     // -------------------------------------------------------------------------
@@ -349,14 +376,14 @@ int main(int argc, char const ** argv)
             // TODO check if var is not empty!
 
             localLog << "--- Searching in (reference) region ["
-                     << (int)(var.ref_pos - DEV_POS * var.sv_length) << "-"
-                     << (int)(var.ref_pos + var.sv_length + DEV_POS * var.sv_length) << "]"
+                     << (int)(var.ref_pos - config.dev_pos * var.sv_length) << "-"
+                     << (int)(var.ref_pos + var.sv_length + config.dev_pos * var.sv_length) << "]"
                      << " for a variant of type " << var.alt_seq
-                     << " of length " << (int)(var.sv_length - DEV_SIZE * var.sv_length) << "-"
-                     << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << std::endl;
+                     << " of length " << (int)(var.sv_length - config.dev_size * var.sv_length) << "-"
+                     << (int)(var.sv_length + config.dev_size * var.sv_length) << " bp's" << std::endl;
 
             for (auto const & rec : long_reads)
-                if (record_supports_variant(rec, var))
+                if (record_supports_variant(rec, var, config))
                     supporting_records.push_back(rec);
 
             if (supporting_records.size() == 0)
@@ -371,7 +398,7 @@ int main(int argc, char const ** argv)
                 localLog << "--- After merging " << long_reads.size() << " read(s) remain(s)." << std::endl;
 
                 for (auto const & rec : long_reads)
-                    if (record_supports_variant(rec, var))
+                    if (record_supports_variant(rec, var, config))
                         supporting_records.push_back(rec);
 
                 if (supporting_records.size() == 0) // there are none at all
@@ -464,7 +491,6 @@ int main(int argc, char const ** argv)
         // ~supporting_sequences(); // not used any more
 
         Dna5String polished_ref;
-        SViperConfig config{options};
         config.ref_flank_length = 500;
 
         {
@@ -579,7 +605,7 @@ int main(int argc, char const ** argv)
 
         assign_quality(final_record, var, config); // assigns a score to record.mapQ and var.quality
 
-        if (!refine_variant(final_record, var))
+        if (!refine_variant(final_record, var, config))
         {
             var.filter = "FAIL5";
             //assign_quality(record, var, false);

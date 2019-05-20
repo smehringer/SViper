@@ -4,9 +4,7 @@
 #include <regex>
 
 #include <basics.h>
-
-double const DEV_SIZE = 0.6;
-double const DEV_POS = 0.5;
+#include <config.h>
 
 enum SV_TYPE
 {
@@ -188,7 +186,9 @@ bool is_same_sv_type(char cigar_operation, SV_TYPE type)
     return false;
 }
 
-bool record_supports_variant(seqan::BamAlignmentRecord const & record, Variant const & variant)
+bool record_supports_variant(seqan::BamAlignmentRecord const & record,
+                             Variant const & variant,
+                             SViperConfig const & config)
 {
     bool is_supporting{false};
 
@@ -201,7 +201,10 @@ bool record_supports_variant(seqan::BamAlignmentRecord const & record, Variant c
                      ref_pos,
                      read_pos,
                      record.cigar,
-                     [&variant] (int ref, int /*read*/) {return ref >= (variant.ref_pos - DEV_POS * variant.sv_length);});
+                     [&variant, &config] (int ref, int /*read*/)
+                     {
+                        return ref >= (variant.ref_pos - config.dev_pos * variant.sv_length);
+                     });
 
     // now look for variant (DEL/INS) until region of interest (+ buffer) is surpassed
     advance_in_cigar(cigar_pos,
@@ -212,21 +215,19 @@ bool record_supports_variant(seqan::BamAlignmentRecord const & record, Variant c
                      {
                         if (is_same_sv_type((record.cigar[cigar_pos]).operation, variant.sv_type))
                         {
-                            if ((record.cigar[cigar_pos]).count >= variant.sv_length - (DEV_SIZE * variant.sv_length) &&
-                                (record.cigar[cigar_pos]).count <= variant.sv_length + (DEV_SIZE * variant.sv_length))
+                            if (config.sv_length_passes_threshold((record.cigar[cigar_pos]).count, variant.sv_length))
                             {
                                 is_supporting = true;
                                 return true; // stop criterion met.
                             }
                         }
-                        return ref > (variant.ref_pos + variant.sv_length + DEV_POS * variant.sv_length);
-                     }
-                     );
+                        return ref > (variant.ref_pos + variant.sv_length + config.dev_pos * variant.sv_length);
+                     });
 
     return is_supporting;
 }
 
-bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
+bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant, SViperConfig const & config)
 {
     bool has_variant{false};
 
@@ -238,7 +239,10 @@ bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
                      ref_pos,
                      read_pos,
                      record.cigar,
-                     [&variant] (int ref, int /*read*/) {return ref >= (variant.ref_pos - DEV_POS * variant.sv_length);});
+                     [&variant, &config] (int ref, int /*read*/)
+                     {
+                        return ref >= (variant.ref_pos - config.dev_pos * variant.sv_length);
+                     });
 
     // now look for variant (DEL/INS) until region of interest (+ buffer) is surpassed
     advance_in_cigar(cigar_pos,
@@ -249,14 +253,13 @@ bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
                      {
                         if (is_same_sv_type((record.cigar[cigar_pos]).operation, variant.sv_type))
                         {
-                            if ((record.cigar[cigar_pos]).count >= variant.sv_length - (DEV_SIZE * variant.sv_length) &&
-                                (record.cigar[cigar_pos]).count <= variant.sv_length + (DEV_SIZE * variant.sv_length))
+                            if (config.sv_length_passes_threshold((record.cigar[cigar_pos]).count, variant.sv_length))
                             {
                                 has_variant = true;
                                 return true; // stop criterion met.
                             }
                         }
-                        return ref > (variant.ref_pos + variant.sv_length + DEV_POS * variant.sv_length);
+                        return ref > (variant.ref_pos + variant.sv_length + config.dev_pos * variant.sv_length);
                      }
                      );
 
