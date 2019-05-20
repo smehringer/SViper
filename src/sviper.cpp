@@ -302,7 +302,7 @@ int main(int argc, char const ** argv)
         {
             localLog << "[ ERROR ]: No reference sequence named "
                      << var.ref_chrom << " in short read bam file." << std::endl;
-            var.filter = "FAIL4";
+            var.filter = "FAIL6";
             #pragma omp critical
             log_file << localLog.str() << std::endl;
             continue;
@@ -312,7 +312,7 @@ int main(int argc, char const ** argv)
         {
             localLog << "[ ERROR ]: No reference sequence named "
                      << var.ref_chrom << " in long read bam file." << std::endl;
-            var.filter = "FAIL1";
+            var.filter = "FAIL7";
             #pragma omp critical
             log_file << localLog.str() << std::endl;
             continue;
