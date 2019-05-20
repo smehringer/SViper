@@ -646,16 +646,16 @@ int main(int argc, char const ** argv)
             }
 
             // write out custom filters
-            output_vcf << "##FILTER=<ID=\"FAIL0\",Description=\"The fasta index has no entry for the given "
+            output_vcf << "##FILTER=<ID=FAIL0,Description=\"The fasta index has no entry for the given "
                        << "reference name of the variant.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=\"FAIL1\",Description=\"No long reads in variant region.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=\"FAIL2\",Description=\"No long reads support the variant.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=\"FAIL3\",Description=\"The long read regions do not fit.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=\"FAIL4\",Description=\"Not enough short reads.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=\"FAIL5\",Description=\"The variant was polished away." << std::endl;
-            output_vcf << "##FILTER=<ID=\"FAIL6\",Description=\"The variant reference name does not exist in the " <<
+            output_vcf << "##FILTER=<ID=FAIL1,Description=\"No long reads in variant region.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=FAIL2,Description=\"No long reads support the variant.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=FAIL3,Description=\"The long read regions do not fit.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=FAIL4,Description=\"Not enough short reads.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=FAIL5,Description=\"The variant was polished away." << std::endl;
+            output_vcf << "##FILTER=<ID=FAIL6,Description=\"The variant reference name does not exist in the " <<
                           "short read BAM file." << std::endl;
-            output_vcf << "##FILTER=<ID=\"FAIL7\",Description=\"The variant reference name does not exist in the " <<
+            output_vcf << "##FILTER=<ID=FAIL7,Description=\"The variant reference name does not exist in the " <<
                           "long read BAM file." << std::endl;
         }
 
