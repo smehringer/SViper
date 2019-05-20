@@ -618,12 +618,52 @@ int main(int argc, char const ** argv)
     if (!open_file_success(output_vcf, (options.output_prefix + ".vcf").c_str()))
         return 1;
 
-    for (auto const & header_line : vcf_header)
-        output_vcf << header_line << std::endl;
+    for (size_t hl = 0; hl < vcf_header.size(); ++hl)
+    {
+        if (vcf_header[hl].substr(0, 6) == "##INFO")
+        {
+            bool seen_field_SEQ{false};
+
+            while (vcf_header[hl].substr(0, 6) == "##INFO")
+            {
+                if (vcf_header[hl].substr(0, 14) == "##INFO=<ID=SEQ")
+                    seen_field_SEQ = true;
+                output_vcf << vcf_header[hl] << std::endl;
+                ++hl;
+            }
+
+            // write out SEQ info field only if not already present in the header
+            if (!seen_field_SEQ)
+                output_vcf << "##INFO=<ID=SEQ,Number=1,Type=String,Description=\"The alternative sequence.\">"
+                           << std::endl;
+        }
+        else if (vcf_header[hl].substr(0, 8) == "##FILTER")
+        {
+            while (vcf_header[hl].substr(0, 8) == "##FILTER") // write out all existing filters
+            {
+                output_vcf << vcf_header[hl] << std::endl;
+                ++hl;
+            }
+
+            // write out custom filters
+            output_vcf << "##FILTER=<ID=\"FAIL0\",Description=\"The fasta index has no entry for the given "
+                       << "reference name of the variant.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=\"FAIL1\",Description=\"No long reads in variant region.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=\"FAIL2\",Description=\"No long reads support the variant.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=\"FAIL3\",Description=\"The long read regions do not fit.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=\"FAIL4\",Description=\"Not enough short reads.\">" << std::endl;
+            output_vcf << "##FILTER=<ID=\"FAIL5\",Description=\"The variant was polished away." << std::endl;
+            output_vcf << "##FILTER=<ID=\"FAIL6\",Description=\"The variant reference name does not exist in the " <<
+                          "short read BAM file." << std::endl;
+            output_vcf << "##FILTER=<ID=\"FAIL7\",Description=\"The variant reference name does not exist in the " <<
+                          "long read BAM file." << std::endl;
+        }
+
+        output_vcf << vcf_header[hl] << std::endl;
+    }
 
     for (auto & var : variants)
         var.write(output_vcf);
-
 
     // Write polished reads if specified to output file
     // -------------------------------------------------------------------------
