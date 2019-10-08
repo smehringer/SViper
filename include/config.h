@@ -20,6 +20,15 @@ struct CmdOptions
     std::string output_prefix;
     std::string reference_file_name;
     std::string log_file_name;
+
+    CmdOptions(std::string long_, std::string short_, std::string candidate_, std::string ref_) :
+        threads(std::thread::hardware_concurrency()),
+        long_read_file_name(long_),
+        short_read_file_name(short_),
+        candidate_file_name(candidate_),
+        output_prefix(candidate_ + "_polished"),
+        reference_file_name(ref_)
+    {}
 };
 
 /*! A global struct containing all the important information.

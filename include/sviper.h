@@ -35,6 +35,8 @@ struct file_info{
     BamIndex<Bai>                           short_read_bai;
     std::vector<std::unique_ptr<FaiIndex>>  faidx_file_handles;
     std::vector<seqan::BamAlignmentRecord>  polished_reads;
+
+    file_info(CmdOptions & options_) : options(options_) {}
 };
 
 ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, char const ** argv)
