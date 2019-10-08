@@ -141,6 +141,58 @@ ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, cha
     return seqan::ArgumentParser::PARSE_OK;
 }
 
+bool prep_file_handles(file_info * info)
+{
+    unsigned num_threads{info->options.threads};
+    omp_set_num_threads(num_threads);
+
+    info->long_read_file_handles.resize(num_threads);
+    info->short_read_file_handles.resize(num_threads);
+    info->faidx_file_handles.resize(num_threads);
+
+    for (unsigned t = 0; t < num_threads; ++t)
+    {
+        try
+        {
+            info->short_read_file_handles[t] = make_unique<BamFileIn>(info->options.short_read_file_name.c_str());
+            readHeader(info->short_read_header, *(info->short_read_file_handles[t]));
+        }
+        catch (Exception & e)
+        {
+            std::cerr << "[ ERROR ] Corrupted bam file " << info->options.short_read_file_name << std::endl;
+            std::cerr << e.what() << std::endl;
+            return false;
+        }
+
+        try
+        {
+            info->long_read_file_handles[t] = make_unique<BamFileIn>(info->options.long_read_file_name.c_str());
+            readHeader(info->long_read_header, *(info->long_read_file_handles[t]));
+        }
+        catch (Exception & e)
+        {
+            std::cerr << "[ ERROR ] Corrupted bam file " << info->options.long_read_file_name << std::endl;
+            std::cerr << e.what() << std::endl;
+            return false;
+        }
+
+        try
+        {
+            info->faidx_file_handles[t] = make_unique<FaiIndex>();
+            if (!open_file_success(*(info->faidx_file_handles[t]), info->options.reference_file_name.c_str()))
+                return false;
+        }
+        catch (Exception & e)
+        {
+            std::cerr << "[ ERROR ] Corrupted faidx file " << info->options.long_read_file_name << std::endl;
+            std::cerr << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, file_info * info)
 {
     ifstream input_vcf;           // The candidate variants to polish

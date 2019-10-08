@@ -31,56 +31,8 @@ int main(int argc, char const ** argv)
 
     // Prepare file hangles for parallel computing
     // -------------------------------------------------------------------------
-    unsigned num_threads{info->options.threads};
-    omp_set_num_threads(num_threads);
-
-    // std::vector<std::unique_ptr<BamFileIn>> long_read_file_handles;
-    // std::vector<std::unique_ptr<BamFileIn>> short_read_file_handles;
-    // std::vector<std::unique_ptr<FaiIndex>> faidx_file_handles;
-
-    info->long_read_file_handles.resize(num_threads);
-    info->short_read_file_handles.resize(num_threads);
-    info->faidx_file_handles.resize(num_threads);
-
-    for (unsigned t = 0; t < num_threads; ++t)
-    {
-        try
-        {
-            info->short_read_file_handles[t] = make_unique<BamFileIn>(info->options.short_read_file_name.c_str());
-            readHeader(info->short_read_header, *(info->short_read_file_handles[t]));
-        }
-        catch (Exception & e)
-        {
-            std::cerr << "[ ERROR ] Corrupted bam file " << info->options.short_read_file_name << std::endl;
-            std::cerr << e.what() << std::endl;
-            return 1;
-        }
-
-        try
-        {
-            info->long_read_file_handles[t] = make_unique<BamFileIn>(info->options.long_read_file_name.c_str());
-            readHeader(info->long_read_header, *(info->long_read_file_handles[t]));
-        }
-        catch (Exception & e)
-        {
-            std::cerr << "[ ERROR ] Corrupted bam file " << info->options.long_read_file_name << std::endl;
-            std::cerr << e.what() << std::endl;
-            return 1;
-        }
-
-        try
-        {
-            info->faidx_file_handles[t] = make_unique<FaiIndex>();
-            if (!open_file_success(*(info->faidx_file_handles[t]), info->options.reference_file_name.c_str()))
-                return 1;
-        }
-        catch (Exception & e)
-        {
-            std::cerr << "[ ERROR ] Corrupted faidx file " << info->options.long_read_file_name << std::endl;
-            std::cerr << e.what() << std::endl;
-            return 1;
-        }
-    }
+    if (!prep_file_handles(info))
+        return 1;
 
     // Polish variants
     // -------------------------------------------------------------------------
