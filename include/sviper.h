@@ -289,7 +289,7 @@ bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_h
     return true;
 }
 
-void polish_init(std::vector<Variant> & variants, file_info * info)
+bool polish_init(std::vector<Variant> & variants, file_info * info)
 {
     #pragma omp parallel for schedule(guided)
     for (unsigned vidx = 0; vidx < variants.size(); ++vidx)
@@ -669,4 +669,6 @@ void polish_init(std::vector<Variant> & variants, file_info * info)
         #pragma omp critical
         info->log_file << localLog.str() << std::endl;
     } // parallel for loop
+
+    return true;
 }
