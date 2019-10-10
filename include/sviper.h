@@ -37,6 +37,12 @@ struct file_info{
     std::vector<seqan::BamAlignmentRecord>  polished_reads;
 
     file_info(CmdOptions & options_) : options(options_) {}
+
+    file_info() = default;
+    file_info(const file_info&) = default;
+    file_info(file_info&&) = default;
+    file_info& operator=(const file_info&) = default;
+    file_info& operator=(file_info&&) = default;
 };
 
 ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, char const ** argv)
@@ -143,50 +149,50 @@ ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, cha
     return seqan::ArgumentParser::PARSE_OK;
 }
 
-bool prep_file_handles(file_info * info)
+bool prep_file_handles(file_info & info)
 {
-    unsigned num_threads{info->options.threads};
+    unsigned num_threads{info.options.threads};
     omp_set_num_threads(num_threads);
 
-    info->long_read_file_handles.resize(num_threads);
-    info->short_read_file_handles.resize(num_threads);
-    info->faidx_file_handles.resize(num_threads);
+    info.long_read_file_handles.resize(num_threads);
+    info.short_read_file_handles.resize(num_threads);
+    info.faidx_file_handles.resize(num_threads);
 
     for (unsigned t = 0; t < num_threads; ++t)
     {
         try
         {
-            info->short_read_file_handles[t] = make_unique<BamFileIn>(info->options.short_read_file_name.c_str());
-            readHeader(info->short_read_header, *(info->short_read_file_handles[t]));
+            info.short_read_file_handles[t] = make_unique<BamFileIn>(info.options.short_read_file_name.c_str());
+            readHeader(info.short_read_header, *(info.short_read_file_handles[t]));
         }
         catch (Exception & e)
         {
-            std::cerr << "[ ERROR ] Corrupted bam file " << info->options.short_read_file_name << std::endl;
+            std::cerr << "[ ERROR ] Corrupted bam file " << info.options.short_read_file_name << std::endl;
             std::cerr << e.what() << std::endl;
             return false;
         }
 
         try
         {
-            info->long_read_file_handles[t] = make_unique<BamFileIn>(info->options.long_read_file_name.c_str());
-            readHeader(info->long_read_header, *(info->long_read_file_handles[t]));
+            info.long_read_file_handles[t] = make_unique<BamFileIn>(info.options.long_read_file_name.c_str());
+            readHeader(info.long_read_header, *(info.long_read_file_handles[t]));
         }
         catch (Exception & e)
         {
-            std::cerr << "[ ERROR ] Corrupted bam file " << info->options.long_read_file_name << std::endl;
+            std::cerr << "[ ERROR ] Corrupted bam file " << info.options.long_read_file_name << std::endl;
             std::cerr << e.what() << std::endl;
             return false;
         }
 
         try
         {
-            info->faidx_file_handles[t] = make_unique<FaiIndex>();
-            if (!open_file_success(*(info->faidx_file_handles[t]), info->options.reference_file_name.c_str()))
+            info.faidx_file_handles[t] = make_unique<FaiIndex>();
+            if (!open_file_success(*(info.faidx_file_handles[t]), info.options.reference_file_name.c_str()))
                 return false;
         }
         catch (Exception & e)
         {
-            std::cerr << "[ ERROR ] Corrupted faidx file " << info->options.long_read_file_name << std::endl;
+            std::cerr << "[ ERROR ] Corrupted faidx file " << info.options.long_read_file_name << std::endl;
             std::cerr << e.what() << std::endl;
             return false;
         }
@@ -195,11 +201,11 @@ bool prep_file_handles(file_info * info)
     return true;
 }
 
-bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, file_info * info)
+bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, file_info & info)
 {
     ifstream input_vcf;           // The candidate variants to polish
 
-    if (!open_file_success(input_vcf, info->options.candidate_file_name.c_str()))
+    if (!open_file_success(input_vcf, info.options.candidate_file_name.c_str()))
         return false;
 
     std::string line{'#'};
@@ -216,10 +222,10 @@ bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_he
     return true;
 }
 
-bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, file_info * info)
+bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, file_info & info)
 {
     ofstream output_vcf;          // The polished variant as output
-    if (!open_file_success(output_vcf, (info->options.output_prefix + ".vcf").c_str()))
+    if (!open_file_success(output_vcf, (info.options.output_prefix + ".vcf").c_str()))
         return false;
 
     for (size_t hl = 0; hl < vcf_header.size(); ++hl)
@@ -271,35 +277,35 @@ bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_h
 
     // Write polished reads if specified to output file
     // -------------------------------------------------------------------------
-    if (info->options.output_polished_bam)
+    if (info.options.output_polished_bam)
     {
-        BamFileOut result_bam(context(*(info->long_read_file_handles[0]))); // The optional output bam file for polished reads
+        BamFileOut result_bam(context(*(info.long_read_file_handles[0]))); // The optional output bam file for polished reads
 
-        if (!open_file_success(result_bam, toCString(info->options.output_prefix + "_polished_reads.bam")))
+        if (!open_file_success(result_bam, toCString(info.options.output_prefix + "_polished_reads.bam")))
         {
             std::cerr << "Did not write resulting bam file." << std::endl;
         }
         else
         {
-            writeHeader(result_bam, info->long_read_header);
-            for (auto const & rec : info->polished_reads)
+            writeHeader(result_bam, info.long_read_header);
+            for (auto const & rec : info.polished_reads)
                 writeRecord(result_bam, rec);
         }
     }
     return true;
 }
 
-bool polish_init(Variant & var, file_info * info)
+bool polish_init(Variant & var, file_info & info)
 {
     std::stringstream localLog;
-    seqan::BamFileIn & short_read_bam = *(info->short_read_file_handles[omp_get_thread_num()]);
-    seqan::BamFileIn & long_read_bam = *(info->long_read_file_handles[omp_get_thread_num()]);
-    seqan::FaiIndex & faiIndex = *(info->faidx_file_handles[omp_get_thread_num()]);
+    seqan::BamFileIn & short_read_bam = *(info.short_read_file_handles[omp_get_thread_num()]);
+    seqan::BamFileIn & long_read_bam = *(info.long_read_file_handles[omp_get_thread_num()]);
+    seqan::FaiIndex & faiIndex = *(info.faidx_file_handles[omp_get_thread_num()]);
 
     if (var.alt_seq != "<DEL>" && var.alt_seq != "<INS>")
     {
         #pragma omp critical
-        info->log_file << "----------------------------------------------------------------------" << std::endl
+        info.log_file << "----------------------------------------------------------------------" << std::endl
                  << " SKIP Variant " << var.id << " at " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
                  << "----------------------------------------------------------------------" << std::endl;
         var.filter = "SKIP";
@@ -308,7 +314,7 @@ bool polish_init(Variant & var, file_info * info)
     if (var.sv_length > 1000000)
     {
         #pragma omp critical
-        info->log_file << "----------------------------------------------------------------------" << std::endl
+        info.log_file << "----------------------------------------------------------------------" << std::endl
                  << " SKIP too long Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
                  << "----------------------------------------------------------------------" << std::endl;
         var.filter = "SKIP";
@@ -327,7 +333,7 @@ bool polish_init(Variant & var, file_info * info)
         localLog << "[ ERROR ]: FAI index has no entry for reference name"
                  << var.ref_chrom << std::endl;
         #pragma omp critical
-        info->log_file << localLog.str() << std::endl;
+        info.log_file << localLog.str() << std::endl;
         var.filter = "FAIL0";
         return false;
     }
@@ -335,8 +341,8 @@ bool polish_init(Variant & var, file_info * info)
     // cash variables to avoid recomputing
     // Note that the positions are one based/ since the VCF format is one based
     int const ref_length       = seqan::sequenceLength(faiIndex, ref_fai_idx);
-    int const ref_region_start = std::max(1, var.ref_pos - info->options.flanking_region);
-    int const ref_region_end   = std::min(ref_length, var.ref_pos_end + info->options.flanking_region);
+    int const ref_region_start = std::max(1, var.ref_pos - info.options.flanking_region);
+    int const ref_region_end   = std::min(ref_length, var.ref_pos_end + info.options.flanking_region);
 
     int const var_ref_pos_add50     = std::min(ref_length, var.ref_pos + 50);
     int const var_ref_pos_sub50     = std::max(1, var.ref_pos - 50);
@@ -358,7 +364,7 @@ bool polish_init(Variant & var, file_info * info)
                  << var.ref_chrom << " in short read bam file." << std::endl;
         var.filter = "FAIL6";
         #pragma omp critical
-        info->log_file << localLog.str() << std::endl;
+        info.log_file << localLog.str() << std::endl;
         return false;
     }
 
@@ -368,7 +374,7 @@ bool polish_init(Variant & var, file_info * info)
                  << var.ref_chrom << " in long read bam file." << std::endl;
         var.filter = "FAIL7";
         #pragma omp critical
-        info->log_file << localLog.str() << std::endl;
+        info.log_file << localLog.str() << std::endl;
         return false;
     }
 
@@ -380,9 +386,9 @@ bool polish_init(Variant & var, file_info * info)
         std::vector<seqan::BamAlignmentRecord> long_reads;
 
         // extract overlapping the start breakpoint +-50 bp's
-        viewRecords(long_reads, long_read_bam, info->long_read_bai, rID_long, var_ref_pos_sub50, var_ref_pos_add50);
+        viewRecords(long_reads, long_read_bam, info.long_read_bai, rID_long, var_ref_pos_sub50, var_ref_pos_add50);
         // extract overlapping the end breakpoint +-50 bp's
-        viewRecords(long_reads, long_read_bam, info->long_read_bai, rID_long, var_ref_pos_end_sub50, var_ref_pos_end_add50);
+        viewRecords(long_reads, long_read_bam, info.long_read_bai, rID_long, var_ref_pos_end_sub50, var_ref_pos_end_add50);
 
         if (long_reads.size() == 0)
         {
@@ -392,7 +398,7 @@ bool polish_init(Variant & var, file_info * info)
 
             var.filter = "FAIL1";
             #pragma omp critical
-            info->log_file << localLog.str() << std::endl;
+            info.log_file << localLog.str() << std::endl;
             return false;
         }
 
@@ -437,7 +443,7 @@ bool polish_init(Variant & var, file_info * info)
 
                 var.filter = "FAIL2";
                 #pragma omp critical
-                info->log_file << localLog.str() << std::endl;
+                info.log_file << localLog.str() << std::endl;
                 return false;
             }
         }
@@ -455,7 +461,7 @@ bool polish_init(Variant & var, file_info * info)
 
     // Crop fasta sequence of each supporting read for consensus
     // ---------------------------------------------------------------------
-    localLog << "--- Cropping long reads with a buffer of +-" << info->options.flanking_region << " around variants." << endl;
+    localLog << "--- Cropping long reads with a buffer of +-" << info.options.flanking_region << " around variants." << endl;
 
     StringSet<Dna5String> supporting_sequences;
     std::vector<seqan::BamAlignmentRecord>::size_type maximum_long_reads = 5;
@@ -471,11 +477,11 @@ bool polish_init(Variant & var, file_info * info)
         // For deletions, the expected size of the subsequence is that of
         // the flanking region, since the rest is deleted. For insertions it
         // is that of the flanking region + the insertion length.
-        int32_t expected_length{2*info->options.flanking_region};
+        int32_t expected_length{2*info.options.flanking_region};
         if (var.sv_type == SV_TYPE::INS)
             expected_length += var.sv_length;
 
-        if (abs(static_cast<int32_t>(length(reg)) - expected_length) > info->options.flanking_region)
+        if (abs(static_cast<int32_t>(length(reg)) - expected_length) > info.options.flanking_region)
         {
             localLog << "------ Skip Read - Length:" << length(reg) << " Qual:" << supporting_records[i].mapQ
                      << " Name: "<< supporting_records[i].qName << endl;
@@ -499,7 +505,7 @@ bool polish_init(Variant & var, file_info * info)
 
         var.filter = "FAIL3";
         #pragma omp critical
-        info->log_file << localLog.str() << std::endl;
+        info.log_file << localLog.str() << std::endl;
         return false;
     }
 
@@ -518,7 +524,7 @@ bool polish_init(Variant & var, file_info * info)
     // ~supporting_sequences(); // not used any more
 
     Dna5String polished_ref;
-    SViperConfig config{info->options};
+    SViperConfig config{info.options};
     config.ref_flank_length = 500;
 
     {
@@ -531,25 +537,25 @@ bool polish_init(Variant & var, file_info * info)
             vector<BamAlignmentRecord> short_reads;
             // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-region,
             // then extract reads for each break point separately.
-            if (ref_region_end - ref_region_start > info->options.flanking_region * 2 + info->options.length_of_short_reads)
+            if (ref_region_end - ref_region_start > info.options.flanking_region * 2 + info.options.length_of_short_reads)
             {
                 // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
-                unsigned e = std::min(ref_length, var.ref_pos + info->options.flanking_region);
-                viewRecords(short_reads, short_read_bam, info->short_read_bai, rID_short, ref_region_start, e);
-                cut_down_high_coverage(short_reads, info->options.mean_coverage_of_short_reads);
+                unsigned e = std::min(ref_length, var.ref_pos + info.options.flanking_region);
+                viewRecords(short_reads, short_read_bam, info.short_read_bai, rID_short, ref_region_start, e);
+                cut_down_high_coverage(short_reads, info.options.mean_coverage_of_short_reads);
 
                 // and right of the end of the variant [end-flanking_region, end+flanking_region]
                 vector<BamAlignmentRecord> tmp_short_reads;
-                unsigned s = std::max(1, var.ref_pos_end - info->options.flanking_region);
-                viewRecords(tmp_short_reads, short_read_bam, info->short_read_bai, rID_short, s, ref_region_end);
-                cut_down_high_coverage(tmp_short_reads, info->options.mean_coverage_of_short_reads);
+                unsigned s = std::max(1, var.ref_pos_end - info.options.flanking_region);
+                viewRecords(tmp_short_reads, short_read_bam, info.short_read_bai, rID_short, s, ref_region_end);
+                cut_down_high_coverage(tmp_short_reads, info.options.mean_coverage_of_short_reads);
                 append(short_reads, tmp_short_reads);
             }
             else
             {
                 // extract reads left of the start of the variant [start-flanking_region, start]
-                viewRecords(short_reads, short_read_bam, info->short_read_bai, rID_short, ref_region_start, ref_region_end);
-                cut_down_high_coverage(short_reads, info->options.mean_coverage_of_short_reads);
+                viewRecords(short_reads, short_read_bam, info.short_read_bai, rID_short, ref_region_start, ref_region_end);
+                cut_down_high_coverage(short_reads, info.options.mean_coverage_of_short_reads);
             }
 
             if (short_reads.size() < 20)
@@ -561,11 +567,11 @@ bool polish_init(Variant & var, file_info * info)
 
                 var.filter = "FAIL4";
                 #pragma omp critical
-                info->log_file << localLog.str() << std::endl;
+                info.log_file << localLog.str() << std::endl;
                 return false;
             }
 
-            records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, info->short_read_bai);
+            records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, info.short_read_bai);
 
             localLog << "--- Extracted " << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
         } // scope of short reads ends
@@ -649,7 +655,7 @@ bool polish_init(Variant & var, file_info * info)
                  << std::endl;
     }
 
-    if (info->options.output_polished_bam)
+    if (info.options.output_polished_bam)
     {
         std::string read_identifier = (string("polished_var") +
                                        ":" + var.ref_chrom +
@@ -659,11 +665,11 @@ bool polish_init(Variant & var, file_info * info)
         final_record.qName = read_identifier;
 
         #pragma omp critical
-        info->polished_reads.push_back(final_record);
+        info.polished_reads.push_back(final_record);
     }
 
     #pragma omp critical
-    info->log_file << localLog.str() << std::endl;
+    info.log_file << localLog.str() << std::endl;
 
     return true;
 }

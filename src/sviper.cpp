@@ -3,23 +3,22 @@
 using namespace std;
 using namespace seqan;
 
-// Global file info struct.
-file_info * info{};
-
 int main(int argc, char const ** argv)
 {
+    // Struct holding auxilary information.
+    file_info info{};
     // Parse Command Line Arguments
     // -------------------------------------------------------------------------
     // CmdOptions options;
-    ArgumentParser::ParseResult res = parseCommandLine(info->options, argc, argv);
+    ArgumentParser::ParseResult res = parseCommandLine(info.options, argc, argv);
 
     if (res != seqan::ArgumentParser::PARSE_OK)
         return res == seqan::ArgumentParser::PARSE_ERROR;
 
     // Check files
-    if (!open_file_success(info->long_read_bai, (info->options.long_read_file_name + ".bai").c_str()) ||
-        !open_file_success(info->short_read_bai, (info->options.short_read_file_name + ".bai").c_str()) ||
-        !open_file_success(info->log_file, (info->options.output_prefix + ".log").c_str()))
+    if (!open_file_success(info.long_read_bai, (info.options.long_read_file_name + ".bai").c_str()) ||
+        !open_file_success(info.short_read_bai, (info.options.short_read_file_name + ".bai").c_str()) ||
+        !open_file_success(info.log_file, (info.options.output_prefix + ".log").c_str()))
         return 1;
     // -------------------------------------------------------------------------
     // Read variants into container // TODO:: use seqan vcf parser instead (needs to be extended)
@@ -36,11 +35,11 @@ int main(int argc, char const ** argv)
 
     // Polish variants
     // -------------------------------------------------------------------------
-    info->log_file  << "======================================================================" << std::endl
-                    << "START polishing variants in of file " << info->options.candidate_file_name << std::endl
+    info.log_file  << "======================================================================" << std::endl
+                    << "START polishing variants in of file " << info.options.candidate_file_name << std::endl
                     << "======================================================================" << std::endl;
 
-    // std::vector<seqan::BamAlignmentRecord> polished_reads; // stores records in case info->options.output-polished-bam is true
+    // std::vector<seqan::BamAlignmentRecord> polished_reads; // stores records in case info.options.output-polished-bam is true
     #pragma omp parallel for schedule(guided)
     for (unsigned vidx = 0; vidx < variants.size(); ++vidx)
     {
@@ -52,7 +51,7 @@ int main(int argc, char const ** argv)
     if (!write_vcf(variants, vcf_header, info))
         return 1;
 
-    info->log_file  << "======================================================================" << std::endl
+    info.log_file  << "======================================================================" << std::endl
               << "                                 DONE"  << std::endl
               << "======================================================================" << std::endl;
 
