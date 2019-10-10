@@ -41,8 +41,11 @@ int main(int argc, char const ** argv)
                     << "======================================================================" << std::endl;
 
     // std::vector<seqan::BamAlignmentRecord> polished_reads; // stores records in case info->options.output-polished-bam is true
-
-    polish_init(variants, info);
+    #pragma omp parallel for schedule(guided)
+    for (unsigned vidx = 0; vidx < variants.size(); ++vidx)
+    {
+        polish_init(variants[vidx], info);
+    } // parallel for loop
 
     // Write refined variants to output file
     // -------------------------------------------------------------------------
