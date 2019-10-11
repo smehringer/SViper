@@ -291,7 +291,7 @@ bool polish_init(Variant & var, Auxiliary & info)
 
     // Crop fasta sequence of each supporting read for consensus
     // ---------------------------------------------------------------------
-    localLog << "--- Cropping long reads with a buffer of +-" << info.options.flanking_region << " around variants." << endl;
+    localLog << "--- Cropping long reads with a buffer of +-" << info.options.flanking_region << " around variants." << std::endl;
 
     seqan::StringSet<seqan::Dna5String> supporting_sequences;
     std::vector<seqan::BamAlignmentRecord>::size_type maximum_long_reads = 5;
@@ -302,7 +302,7 @@ bool polish_init(Variant & var, Auxiliary & info)
     for (unsigned i = 0; i < std::min(maximum_long_reads, supporting_records.size()); ++i)
     {
         auto region = get_read_region_boundaries(supporting_records[i], ref_region_start, ref_region_end);
-        seqan::Dna5String reg = seqan::infix(supporting_records[i].seq, get<0>(region), get<1>(region));
+        seqan::Dna5String reg = seqan::infix(supporting_records[i].seq, std::get<0>(region), std::get<1>(region));
 
         // For deletions, the expected size of the subsequence is that of
         // the flanking region, since the rest is deleted. For insertions it
@@ -314,16 +314,16 @@ bool polish_init(Variant & var, Auxiliary & info)
         if (abs(static_cast<int32_t>(seqan::length(reg)) - expected_length) > info.options.flanking_region)
         {
             localLog << "------ Skip Read - Length:" << seqan::length(reg) << " Qual:" << supporting_records[i].mapQ
-                     << " Name: "<< supporting_records[i].qName << endl;
+                     << " Name: "<< supporting_records[i].qName << std::endl;
             ++maximum_long_reads;
             return false; // do not use under or oversized region
         }
 
         seqan::appendValue(supporting_sequences, reg);
 
-        localLog << "------ Region: [" << get<0>(region) << "-" << get<1>(region)
+        localLog << "------ Region: [" << std::get<0>(region) << "-" << std::get<1>(region)
                  << "] Length:" << seqan::length(reg) << " Qual:" << supporting_records[i].mapQ
-                 << " Name: "<< supporting_records[i].qName << endl;
+                 << " Name: "<< supporting_records[i].qName << std::endl;
     }
 
     if (seqan::length(supporting_sequences) == 0)
@@ -348,7 +348,7 @@ bool polish_init(Variant & var, Auxiliary & info)
 
     seqan::Dna5String cns = build_consensus(supporting_sequences, mapping_qualities);
 
-    localLog << "--- Built a consensus with a MSA of length " << seqan::length(cns) << "." << endl;
+    localLog << "--- Built a consensus with a MSA of length " << seqan::length(cns) << "." << std::endl;
 
     seqan::Dna5String polished_ref;
     SViperConfig config{info.options};
@@ -484,10 +484,10 @@ bool polish_init(Variant & var, Auxiliary & info)
 
     if (info.options.output_polished_bam)
     {
-        std::string read_identifier = (string("polished_var") +
+        std::string read_identifier = (std::string("polished_var") +
                                        ":" + var.ref_chrom +
-                                       ":" + to_string(var.ref_pos) +
-                                       ":" + to_string(var.ref_pos_end) +
+                                       ":" + std::to_string(var.ref_pos) +
+                                       ":" + std::to_string(var.ref_pos_end) +
                                        ":" + var.id);
         final_record.qName = read_identifier;
 

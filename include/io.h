@@ -8,7 +8,7 @@
 
 bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, Auxiliary & info)
 {
-    ifstream input_vcf;           // The candidate variants to polish
+    std::ifstream input_vcf;           // The candidate variants to polish
 
     if (!open_file_success(input_vcf, info.options.candidate_file_name.c_str()))
         return false;
@@ -29,7 +29,7 @@ bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_he
 
 bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, Auxiliary & info)
 {
-    ofstream output_vcf;          // The polished variant as output
+    std::ofstream output_vcf;          // The polished variant as output
     if (!open_file_success(output_vcf, (info.options.output_prefix + ".vcf").c_str()))
         return false;
 

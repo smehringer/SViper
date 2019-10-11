@@ -1,15 +1,13 @@
 #include <io.h>
 #include <sviper.h>
 
-using namespace std;
-
 int main(int argc, char const ** argv)
 {
     // Struct holding Auxiliary information.
     Auxiliary info{};
     // Parse Command Line Arguments
     // -------------------------------------------------------------------------
-    ArgumentParser::ParseResult res = parseCommandLine(info.options, argc, argv);
+    seqan::ArgumentParser::ParseResult res = parseCommandLine(info.options, argc, argv);
 
     if (res != seqan::ArgumentParser::PARSE_OK)
         return res == seqan::ArgumentParser::PARSE_ERROR;
