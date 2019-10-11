@@ -365,7 +365,7 @@ uint32_t original_sequence_length(seqan::BamAlignmentRecord const & record)
     return sum;
 }
 
-seqan::BamAlignmentRecord merge_record_group(vector<seqan::BamAlignmentRecord> & record_group)
+seqan::BamAlignmentRecord merge_record_group(std::vector<seqan::BamAlignmentRecord> & record_group)
 {
     SEQAN_ASSERT(record_group.size() > 0);
 
@@ -381,9 +381,9 @@ seqan::BamAlignmentRecord merge_record_group(vector<seqan::BamAlignmentRecord> &
 #ifndef NDEBUG
         if (record_group.size() > 1)
         {
-            std::cerr << "Merging group of " << record_group.size() << " with name " << final_record.qName << "\t" << endl;
+            std::cerr << "Merging group of " << record_group.size() << " with name " << final_record.qName << "\t" << std::endl;
             for (auto const & rec : record_group)
-                std::cerr << "  -> "<< rec.qName << " " << rec.flag << " " << rec.rID << " " << rec.beginPos << " " << rec.mapQ << endl;
+                std::cerr << "  -> "<< rec.qName << " " << rec.flag << " " << rec.rID << " " << rec.beginPos << " " << rec.mapQ << std::endl;
         }
 #endif
 
@@ -514,11 +514,11 @@ seqan::BamAlignmentRecord merge_record_group(vector<seqan::BamAlignmentRecord> &
     return final_record;
 }
 
-vector<seqan::BamAlignmentRecord>
-merge_alignments(vector<seqan::BamAlignmentRecord> const & records)
+std::vector<seqan::BamAlignmentRecord>
+merge_alignments(std::vector<seqan::BamAlignmentRecord> const & records)
 {
-    vector<seqan::BamAlignmentRecord> merged_records;
-    vector<seqan::BamAlignmentRecord> record_group;
+    std::vector<seqan::BamAlignmentRecord> merged_records;
+    std::vector<seqan::BamAlignmentRecord> record_group;
 
     for (auto const & rec : records)
     {

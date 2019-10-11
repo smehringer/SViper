@@ -14,8 +14,6 @@
 #include <basics.h>
 #include <mapping.h>
 
-using namespace std;
-
 inline void add_base_to_profile(seqan::String<seqan::ProfileChar<seqan::Dna5, double> > & profile,
                                 std::vector<unsigned> & cov_profile,
                                 unsigned pos,
@@ -53,7 +51,7 @@ inline void add_gap_to_profile(seqan::String<seqan::ProfileChar<seqan::Dna5, dou
 
 inline void add_read_to_profile(seqan::String<seqan::ProfileChar<seqan::Dna5, double> > & profile,
                                 std::vector<unsigned> & cov_profile,
-                                vector<seqan::String<seqan::ProfileChar<seqan::Dna5, double> >> & ins_profiles,
+                                std::vector<seqan::String<seqan::ProfileChar<seqan::Dna5, double> >> & ins_profiles,
                                 std::vector<std::vector<unsigned>> & ins_cov_profile,
                                 std::vector<unsigned> & no_ins_cov_profile,
                                 seqan::Gaps<seqan::Dna5QString, seqan::ArrayGaps> const & gapsRead,
@@ -64,8 +62,8 @@ inline void add_read_to_profile(seqan::String<seqan::ProfileChar<seqan::Dna5, do
 {
     SEQAN_ASSERT_EQ(seqan::length(gapsRead), seqan::length(gapsRef));
 
-    unsigned begin = max(gapsBeginPos(gapsRef), gapsBeginPos(gapsRead));
-    unsigned end = min(gapsEndPos(gapsRef), gapsEndPos(gapsRead));
+    unsigned begin = std::max(gapsBeginPos(gapsRef), gapsBeginPos(gapsRead));
+    unsigned end = std::min(gapsEndPos(gapsRef), gapsEndPos(gapsRead));
     // append read bases to profile for every position in ref
     for (unsigned idx = begin; idx < end; ++idx)
     {

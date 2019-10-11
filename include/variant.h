@@ -96,7 +96,7 @@ struct Variant
                 if (ss.fail())
                     throw_verbose_exception("VCF-ERROR. END value "+
                                             info.substr(end_n+4, info.find(';', end_n) - end_n - 4)+
-                                            " of variant " + ref_chrom + ":" + to_string(ref_pos) +
+                                            " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
                                             " could not be read.");
             }
 
@@ -109,7 +109,7 @@ struct Variant
                 if (ss.fail())
                     throw_verbose_exception("VCF-ERROR. SVLEN value "+
                                             info.substr(len_n+6, info.find(';', len_n) - len_n - 6)+
-                                            " of variant " + ref_chrom + ":" + to_string(ref_pos) +
+                                            " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
                                             " could not be read.");
                 sv_length = std::abs(sv_length); // some tools report a negative length since bases were deleted
 
@@ -136,7 +136,7 @@ struct Variant
 
     void throw_verbose_exception(std::string const & what)
     {
-        ostringstream os;
+        std::ostringstream os;
         os << what << "Read: ";
         (*this).write(os);
         throw std::iostream::failure(os.str());
@@ -293,7 +293,7 @@ bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
             if (std::regex_search(variant.info, seq_re))
                variant.info = std::regex_replace(variant.info, seq_re, ss.str());
             else
-                variant.info.append(string(";" + ss.str()));
+                variant.info.append(std::string(";" + ss.str()));
         }
 
     }

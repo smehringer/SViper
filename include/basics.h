@@ -178,7 +178,7 @@ void advance_in_cigar(unsigned & cigar_pos,
  *         correspond to the start and end position of the reference given the
  *         alignment represented by the cigar string.
  */
-tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord const & record,
+std::tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord const & record,
                                            int ref_region_begin,
                                            int ref_region_end)
 {
@@ -187,11 +187,11 @@ tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord const & rec
 
     if (ref_region_begin >= ref_region_end)
     {
-        cerr << "[GET READ REGION ERROR]"
+        std::cerr << "[GET READ REGION ERROR]"
              << " for record " << record.qName
              << " Start (" << ref_region_begin
-             << ") >= End (" << ref_region_end << ")" << endl;
-             return make_tuple(0, 0);
+             << ") >= End (" << ref_region_end << ")" << std::endl;
+             return std::make_tuple(0, 0);
     }
 
     // advance to begin of region of interest
@@ -229,7 +229,7 @@ tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord const & rec
         read_region_end = read_pos; // should never happen.. but just in case
     }
 
-    return make_tuple(read_region_begin, read_region_end);
+    return std::make_tuple(read_region_begin, read_region_end);
 }
 
 namespace seqan
@@ -268,8 +268,8 @@ seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
     seqan::Dna5String leftFlank;  // region: [start-length, start]
     seqan::Dna5String rightFlank; // region: [end, end+length]
 
-    seqan::readRegion(leftFlank, fai_index, fai_idx, max(0, start - length), max(0, start));
-    seqan::readRegion(rightFlank, fai_index, fai_idx, min(end, ref_length), min(end + length, ref_length));
+    seqan::readRegion(leftFlank, fai_index, fai_idx, std::max(0, start - length), std::max(0, start));
+    seqan::readRegion(rightFlank, fai_index, fai_idx, std::min(end, ref_length), std::min(end + length, ref_length));
 
     seqan::Dna5String new_seq = leftFlank;
     seqan::append(new_seq, seq);
@@ -469,7 +469,7 @@ void subsample(container_type & c1, container_type & c2, unsigned N)
  * @return  Returns the consensus sequence obtained from the MSA profile.
  */
 inline seqan::Dna5String build_consensus(seqan::StringSet<seqan::Dna5String> const & seqs,
-                                  vector<double> const & quals) // mapping qualities
+                                  std::vector<double> const & quals) // mapping qualities
 {
     // TODO:: include base qualities from bam file
     seqan::Align<seqan::Dna5String> align;

@@ -9,8 +9,6 @@
 
 #include <config.h>
 
-using namespace std;
-
 /*! Find the mate of a read by searching in the BAM file.
  *
  */

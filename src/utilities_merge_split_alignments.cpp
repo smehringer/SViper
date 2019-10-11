@@ -3,8 +3,6 @@
 
 #include <merge_split_alignments.h>
 
-using namespace std;
-
 int main(int argc, char ** argv)
 {
     if (argc != 2)
@@ -39,7 +37,7 @@ int main(int argc, char ** argv)
         return 0;
 
     seqan::BamAlignmentRecord record;
-    vector<seqan::BamAlignmentRecord> record_group;
+    std::vector<seqan::BamAlignmentRecord> record_group;
 
     while (!atEnd(bamfileIn))
     {

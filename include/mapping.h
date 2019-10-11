@@ -143,14 +143,14 @@ inline bool map_single_read(seqan::Gaps<seqan::Dna5QString, seqan::ArrayGaps> & 
  * @param reads2 The read sequences of all "second-in-pair" reads.
  * @param ref         The ref sequence to align the read sequences to.
  */
-vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & reads1,
-                               seqan::StringSet<seqan::Dna5QString> const & reads2,
-                               seqan::Dna5String & ref,
-                               SViperConfig const & config)
+std::vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & reads1,
+                                    seqan::StringSet<seqan::Dna5QString> const & reads2,
+                                    seqan::Dna5String & ref,
+                                    SViperConfig const & config)
 {
     SEQAN_ASSERT_EQ(seqan::length(reads1), seqan::length(reads2));
 
-    vector<Mapping_object> mobs;
+    std::vector<Mapping_object> mobs;
     //mobs.resize(length(reads1)); TODO
 
     for (unsigned ridx = 0; ridx < seqan::length(reads1); ++ridx) // for every read (pair)
