@@ -6,11 +6,9 @@
 #include <config.h>
 #include <basics.h>
 
-using namespace seqan;
-
 // This function computes the end position of the mapping
 int compute_map_end_pos(unsigned map_begin_pos,
-                        String<CigarElement<char, unsigned>> & cigar)
+                        seqan::String<seqan::CigarElement<char, unsigned>> & cigar)
 {
     int len{0}; // tracks read length so far
     for (auto ce : cigar) //
@@ -20,7 +18,7 @@ int compute_map_end_pos(unsigned map_begin_pos,
 }
 
 
-unsigned compute_fragment_length(String<CigarElement<char, unsigned>> & cigar)
+unsigned compute_fragment_length(seqan::String<seqan::CigarElement<char, unsigned>> & cigar)
 {
     unsigned len{0}; // tracks read length so far
     for (auto ce : cigar) //
@@ -29,33 +27,33 @@ unsigned compute_fragment_length(String<CigarElement<char, unsigned>> & cigar)
     return len;
 }
 
-unsigned get_read_begin_and_alter_cigar(BamAlignmentRecord & record)
+unsigned get_read_begin_and_alter_cigar(seqan::BamAlignmentRecord & record)
 {
     unsigned read_begin_pos{0};
     if ((record.cigar[0]).operation == 'H') // hard clipping
     {
-        erase(record.cigar, 0);
+        seqan::erase(record.cigar, 0);
     }
     if ((record.cigar[0]).operation == 'S') // soft clipping
     {
         read_begin_pos += (record.cigar[0]).count;
-        erase(record.cigar, 0);
+        seqan::erase(record.cigar, 0);
     }
     return read_begin_pos;
 }
 
-unsigned get_read_end_and_alter_cigar(BamAlignmentRecord & record)
+unsigned get_read_end_and_alter_cigar(seqan::BamAlignmentRecord & record)
 {
     int read_end_pos{static_cast<int>(length(record.seq)) - 1};
 
     if ((record.cigar[length(record.cigar) - 1]).operation == 'H') // hard clipping
     {
-        erase(record.cigar, length(record.cigar) - 1);
+        seqan::erase(record.cigar, length(record.cigar) - 1);
     }
     if ((record.cigar[length(record.cigar) - 1]).operation == 'S') // soft clipping
     {
         read_end_pos -= (record.cigar[length(record.cigar) - 1]).count;
-        erase(record.cigar, length(record.cigar) - 1);
+        seqan::erase(record.cigar, length(record.cigar) - 1);
     }
 
     if (read_end_pos < 0) // this should never happen, but just to be sure
@@ -64,7 +62,7 @@ unsigned get_read_end_and_alter_cigar(BamAlignmentRecord & record)
     return static_cast<unsigned>(read_end_pos);
 }
 
-void truncate_cigar_right(BamAlignmentRecord & record, int until)
+void truncate_cigar_right(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned cigar_pos{0};
     int read_pos{0};
@@ -77,16 +75,16 @@ void truncate_cigar_right(BamAlignmentRecord & record, int until)
 
     if (cigar_pos == 0) // no advancement happened. only case: until=1
     {
-        erase(record.cigar, cigar_pos + 1, length(record.cigar)); // erase the rest
+        seqan::erase(record.cigar, cigar_pos + 1, length(record.cigar)); // seqan::erase the rest
         record.cigar[0].count = until;
         return;
     }
 
-    erase(record.cigar, cigar_pos, length(record.cigar)); // erase the rest
+    seqan::erase(record.cigar, cigar_pos, length(record.cigar)); // seqan::erase the rest
 
     if (read_pos == (until -1))
     {
-        appendValue(record.cigar, CigarElement<char, unsigned>('I', 1));
+        appendValue(record.cigar, seqan::CigarElement<char, unsigned>('I', 1));
     }
     if (read_pos > (until -1))
     {
@@ -99,7 +97,7 @@ void truncate_cigar_right(BamAlignmentRecord & record, int until)
         if ((record.cigar[length(record.cigar) - 1]).operation == 'D' ||
             (record.cigar[length(record.cigar) - 1]).operation == 'H')
         {   // continuing deletion in record must be added to the large DEL event
-            erase(record.cigar, length(record.cigar) - 1);
+            seqan::erase(record.cigar, length(record.cigar) - 1);
         }
         else // meaning == S
         {
@@ -108,7 +106,7 @@ void truncate_cigar_right(BamAlignmentRecord & record, int until)
     }
 }
 
-void transform_cigar_right_into_insertion(BamAlignmentRecord & record, int until)
+void transform_cigar_right_into_insertion(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned cigar_pos{0};
     int read_pos{0};
@@ -121,7 +119,7 @@ void transform_cigar_right_into_insertion(BamAlignmentRecord & record, int until
 
 //    if (cigar_pos == 0) // no advancement happened. only case: until=1
 //    {
-//        erase(record.cigar, cigar_pos + 1, length(record.cigar)); // erase the rest
+//        seqan::erase(record.cigar, cigar_pos + 1, length(record.cigar)); // seqan::erase the rest
 //        record.cigar[0].count = until;
 //        return;
 //    }
@@ -149,12 +147,12 @@ void transform_cigar_right_into_insertion(BamAlignmentRecord & record, int until
         if ((record.cigar[idx]).operation != 'D') // only add isnerted and matched bases
             insertion_size += (record.cigar[idx]).count;
 
-    erase(record.cigar, cigar_pos + 1, length(record.cigar)); // erase the cigar operations
+    seqan::erase(record.cigar, cigar_pos + 1, length(record.cigar)); // seqan::erase the cigar operations
 
-    appendValue(record.cigar, CigarElement<char, unsigned>('I', insertion_size));
+    appendValue(record.cigar, seqan::CigarElement<char, unsigned>('I', insertion_size));
 }
 
-void truncate_cigar_left(BamAlignmentRecord & record, int until)
+void truncate_cigar_left(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned num_truncated_bases{0};
 
@@ -169,11 +167,11 @@ void truncate_cigar_left(BamAlignmentRecord & record, int until)
 
     num_truncated_bases += ref_pos - record.beginPos;
     if (cigar_pos > 0) // do not run tinto segmentation fault.
-        erase(record.cigar, 0, cigar_pos - 1); // erase the overlapping beginning, Note that erase(0,4) = erase [0,4)
+        seqan::erase(record.cigar, 0, cigar_pos - 1); // seqan::erase the overlapping beginning, Note that seqan::erase(0,4) = seqan::erase [0,4)
 
     if (curr_read_pos == (until + 1))
     {
-        erase(record.cigar, 0); // default erase(..., pos, pos+1)
+        seqan::erase(record.cigar, 0); // default seqan::erase(..., pos, pos+1)
     }
     else if (curr_read_pos > (until + 1))
     {
@@ -190,7 +188,7 @@ void truncate_cigar_left(BamAlignmentRecord & record, int until)
         if ((record.cigar[0]).operation == 'D')
         {   // continuing deletion in record must be added to the large DEL event
             num_truncated_bases += (record.cigar[0]).count;
-            erase(record.cigar, 0);
+            seqan::erase(record.cigar, 0);
         }
         else // meaning == H or S
         {
@@ -201,7 +199,7 @@ void truncate_cigar_left(BamAlignmentRecord & record, int until)
     record.beginPos = record.beginPos + num_truncated_bases;
 }
 
-void transform_cigar_left_into_insertion(BamAlignmentRecord & record, int until)
+void transform_cigar_left_into_insertion(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned insertion_size{0};
 
@@ -237,11 +235,11 @@ void transform_cigar_left_into_insertion(BamAlignmentRecord & record, int until)
         if ((record.cigar[idx]).operation != 'D') // only add inserted and matched bases
             insertion_size += (record.cigar[idx]).count;
 
-    erase(record.cigar, 0, cigar_pos); // erase the overlapping beginning,
-    insert(record.cigar, 0, CigarElement<char, unsigned>('I', insertion_size));
+    seqan::erase(record.cigar, 0, cigar_pos); // seqan::erase the overlapping beginning,
+    insert(record.cigar, 0, seqan::CigarElement<char, unsigned>('I', insertion_size));
 }
 
-void turn_hard_clipping_to_soft_clipping(BamAlignmentRecord & prim, BamAlignmentRecord & supp)
+void turn_hard_clipping_to_soft_clipping(seqan::BamAlignmentRecord & prim, seqan::BamAlignmentRecord & supp)
 {
     // Note: common hard clipping is removed from the cigar string.
     //       hard clipping in one is turned to soft clipping by appending part
@@ -261,7 +259,7 @@ void turn_hard_clipping_to_soft_clipping(BamAlignmentRecord & prim, BamAlignment
 
             if ((prim.cigar[0]).count == 0)
             {
-                erase(prim.cigar, 0);
+                seqan::erase(prim.cigar, 0);
                 final_prim_seq = prim.seq;
             }
             else
@@ -273,7 +271,7 @@ void turn_hard_clipping_to_soft_clipping(BamAlignmentRecord & prim, BamAlignment
 
             if ((supp.cigar[0]).count == 0)
             {
-                erase(supp.cigar, 0);
+                seqan::erase(supp.cigar, 0);
                 final_supp_seq = supp.seq;
             }
             else
@@ -321,7 +319,7 @@ void turn_hard_clipping_to_soft_clipping(BamAlignmentRecord & prim, BamAlignment
 
             if (prim_ce.count == 0)
             {
-                erase(prim.cigar, length(prim.cigar) - 1);
+                seqan::erase(prim.cigar, length(prim.cigar) - 1);
             }
             else
             {
@@ -331,7 +329,7 @@ void turn_hard_clipping_to_soft_clipping(BamAlignmentRecord & prim, BamAlignment
 
             if (supp_ce.count == 0)
             {
-                erase(supp.cigar, length(supp.cigar) - 1);
+                seqan::erase(supp.cigar, length(supp.cigar) - 1);
             }
             else
             {
@@ -358,7 +356,7 @@ void turn_hard_clipping_to_soft_clipping(BamAlignmentRecord & prim, BamAlignment
     supp.seq = final_supp_seq;
 }
 
-uint32_t original_sequence_length(BamAlignmentRecord const & record)
+uint32_t original_sequence_length(seqan::BamAlignmentRecord const & record)
 {
     uint32_t sum{0};
     for (auto const & cigar : record.cigar)
@@ -367,7 +365,7 @@ uint32_t original_sequence_length(BamAlignmentRecord const & record)
     return sum;
 }
 
-BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
+seqan::BamAlignmentRecord merge_record_group(vector<seqan::BamAlignmentRecord> & record_group)
 {
     SEQAN_ASSERT(record_group.size() > 0);
 
@@ -375,7 +373,7 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
     // sort alignment by quality but put primary alignment on top.
     std::sort(record_group.begin(), record_group.end(), bamRecordQualityLess());
 
-    BamAlignmentRecord final_record = record_group[0];
+    seqan::BamAlignmentRecord final_record = record_group[0];
 
     if (!(!hasFlagSupplementary(final_record) && !hasFlagSecondary(final_record))) // is not primary
         return final_record; // we only want to merge supplementaries on primary, not supplementaries on each other
@@ -419,8 +417,8 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
         //     continue;
         // }
 
-        BamAlignmentRecord prim_record{final_record}; // copy so we do not screw with the final one right away
-        BamAlignmentRecord supp_record{record_group[i]};
+        seqan::BamAlignmentRecord prim_record{final_record}; // copy so we do not screw with the final one right away
+        seqan::BamAlignmentRecord supp_record{record_group[i]};
 
         if (supp_record.beginPos < prim_record.beginPos)
         { // ---supp-- before --final--
@@ -446,7 +444,7 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
             {
                 // 4) concatenate cropped cigar string to one big one with a deletion inside
                 int deletion_size = prim_record.beginPos - compute_map_end_pos(supp_record.beginPos, supp_record.cigar);
-                appendValue(supp_record.cigar, CigarElement<char, unsigned>('D', deletion_size));
+                appendValue(supp_record.cigar, seqan::CigarElement<char, unsigned>('D', deletion_size));
             }
             else if (compute_map_end_pos(supp_record.beginPos, supp_record.cigar) > prim_record.beginPos)// INS
             {
@@ -485,7 +483,7 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
             {
                 // 4) concatenate cropped cigar string to one big one with a deletion inside
                 int deletion_size = supp_record.beginPos - compute_map_end_pos(prim_record.beginPos, prim_record.cigar);
-                appendValue(prim_record.cigar, CigarElement<char, unsigned>('D', deletion_size));
+                appendValue(prim_record.cigar, seqan::CigarElement<char, unsigned>('D', deletion_size));
             }
             else
             {
@@ -516,18 +514,18 @@ BamAlignmentRecord merge_record_group(vector<BamAlignmentRecord> & record_group)
     return final_record;
 }
 
-vector<BamAlignmentRecord>
-merge_alignments(vector<BamAlignmentRecord> const & records)
+vector<seqan::BamAlignmentRecord>
+merge_alignments(vector<seqan::BamAlignmentRecord> const & records)
 {
-    vector<BamAlignmentRecord> merged_records;
-    vector<BamAlignmentRecord> record_group;
+    vector<seqan::BamAlignmentRecord> merged_records;
+    vector<seqan::BamAlignmentRecord> record_group;
 
     for (auto const & rec : records)
     {
         if (!record_group.empty() &&
             (record_group[record_group.size() - 1]).qName != rec.qName)
         {
-            BamAlignmentRecord merged_record = merge_record_group(record_group);
+            seqan::BamAlignmentRecord merged_record = merge_record_group(record_group);
             merged_records.push_back(merged_record);
             record_group.clear();
             record_group.push_back(rec);
@@ -546,7 +544,7 @@ merge_alignments(vector<BamAlignmentRecord> const & records)
 
     }
     //process last group
-    BamAlignmentRecord merged_record = merge_record_group(record_group);
+    seqan::BamAlignmentRecord merged_record = merge_record_group(record_group);
     merged_records.push_back(merged_record);
 
     return merged_records;

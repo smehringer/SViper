@@ -79,8 +79,8 @@ inline int gapsBeginPos(seqan::Gaps<string_type, seqan::ArrayGaps> const & gaps)
  * @param read        The read sequence to be alignmed.
  * @param ref         The ref sequence to align `read` to.
  */
-inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsReadOut,
-                            seqan::Gaps<Dna5String, seqan::ArrayGaps> & gapsRefOut,
+inline bool map_single_read(seqan::Gaps<seqan::Dna5QString, seqan::ArrayGaps> & gapsReadOut,
+                            seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> & gapsRefOut,
                             seqan::Dna5QString & read,
                             seqan::Dna5String & ref,
                             double & mapQ)
