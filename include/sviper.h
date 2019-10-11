@@ -24,7 +24,7 @@
 
 using namespace seqan;
 
-struct file_info{
+struct Auxiliary{
     std::ofstream                           log_file;
     CmdOptions                              options;
     std::vector<std::unique_ptr<BamFileIn>> long_read_file_handles;
@@ -34,15 +34,15 @@ struct file_info{
     BamHeader                               short_read_header;  // The bam header object needed to fill bam context
     BamIndex<Bai>                           short_read_bai;
     std::vector<std::unique_ptr<FaiIndex>>  faidx_file_handles;
-    std::vector<seqan::BamAlignmentRecord>  polished_reads;
+    std::vector<seqan::BamAlignmentRecord>  polished_reads; // stores records in case info.options.output-polished-bam is true
 
-    file_info(CmdOptions & options_) : options(options_) {}
+    Auxiliary(CmdOptions & options_) : options(options_) {}
 
-    file_info() = default;
-    file_info(const file_info&) = default;
-    file_info(file_info&&) = default;
-    file_info& operator=(const file_info&) = default;
-    file_info& operator=(file_info&&) = default;
+    Auxiliary() = default;
+    Auxiliary(const Auxiliary&) = default;
+    Auxiliary(Auxiliary&&) = default;
+    Auxiliary& operator=(const Auxiliary&) = default;
+    Auxiliary& operator=(Auxiliary&&) = default;
 };
 
 ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, char const ** argv)
@@ -149,7 +149,7 @@ ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, cha
     return seqan::ArgumentParser::PARSE_OK;
 }
 
-bool prep_file_handles(file_info & info)
+bool prep_file_handles(Auxiliary & info)
 {
     unsigned num_threads{info.options.threads};
     omp_set_num_threads(num_threads);
@@ -201,7 +201,7 @@ bool prep_file_handles(file_info & info)
     return true;
 }
 
-bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, file_info & info)
+bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, Auxiliary & info)
 {
     ifstream input_vcf;           // The candidate variants to polish
 
@@ -222,7 +222,7 @@ bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_he
     return true;
 }
 
-bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, file_info & info)
+bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, Auxiliary & info)
 {
     ofstream output_vcf;          // The polished variant as output
     if (!open_file_success(output_vcf, (info.options.output_prefix + ".vcf").c_str()))
@@ -295,7 +295,7 @@ bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_h
     return true;
 }
 
-bool polish_init(Variant & var, file_info & info)
+bool polish_init(Variant & var, Auxiliary & info)
 {
     std::stringstream localLog;
     seqan::BamFileIn & short_read_bam = *(info.short_read_file_handles[omp_get_thread_num()]);
@@ -519,9 +519,6 @@ bool polish_init(Variant & var, file_info & info)
     Dna5String cns = build_consensus(supporting_sequences, mapping_qualities);
 
     localLog << "--- Built a consensus with a MSA of length " << length(cns) << "." << endl;
-
-    // ~supporting_records();   // not used any more
-    // ~supporting_sequences(); // not used any more
 
     Dna5String polished_ref;
     SViperConfig config{info.options};

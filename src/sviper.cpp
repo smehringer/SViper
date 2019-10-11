@@ -5,11 +5,10 @@ using namespace seqan;
 
 int main(int argc, char const ** argv)
 {
-    // Struct holding auxilary information.
-    file_info info{};
+    // Struct holding Auxiliary information.
+    Auxiliary info{};
     // Parse Command Line Arguments
     // -------------------------------------------------------------------------
-    // CmdOptions options;
     ArgumentParser::ParseResult res = parseCommandLine(info.options, argc, argv);
 
     if (res != seqan::ArgumentParser::PARSE_OK)
@@ -36,10 +35,9 @@ int main(int argc, char const ** argv)
     // Polish variants
     // -------------------------------------------------------------------------
     info.log_file  << "======================================================================" << std::endl
-                    << "START polishing variants in of file " << info.options.candidate_file_name << std::endl
-                    << "======================================================================" << std::endl;
+                   << "START polishing variants in of file " << info.options.candidate_file_name << std::endl
+                   << "======================================================================" << std::endl;
 
-    // std::vector<seqan::BamAlignmentRecord> polished_reads; // stores records in case info.options.output-polished-bam is true
     #pragma omp parallel for schedule(guided)
     for (unsigned vidx = 0; vidx < variants.size(); ++vidx)
     {
@@ -51,9 +49,9 @@ int main(int argc, char const ** argv)
     if (!write_vcf(variants, vcf_header, info))
         return 1;
 
-    info.log_file  << "======================================================================" << std::endl
-              << "                                 DONE"  << std::endl
-              << "======================================================================" << std::endl;
+    info.log_file << "======================================================================" << std::endl
+                  << "                                 DONE" << std::endl
+                  << "======================================================================" << std::endl;
 
     return 0;
 }
