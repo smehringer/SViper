@@ -1,7 +1,7 @@
+#include <io.h>
 #include <sviper.h>
 
 using namespace std;
-using namespace seqan;
 
 int main(int argc, char const ** argv)
 {

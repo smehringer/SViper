@@ -1,13 +1,12 @@
-#include <iostream>
-#include <fstream>
-#include <sstream>
+#pragma once
 #include <cmath>
 #include <chrono>
-#include <vector>
-#include <memory>
-#include <thread>
 #include <limits>
+#include <sstream>
+#include <thread>
+#include <vector>
 
+#include <auxiliary.h>
 #include <basics.h>
 #include <config.h>
 #include <evaluate_final_mapping.h>
@@ -15,112 +14,89 @@
 #include <polishing.h>
 #include <variant.h>
 
+#include <seqan/align.h>
 #include <seqan/arg_parse.h>
 #include <seqan/bam_io.h>
 #include <seqan/sequence.h>
 #include <seqan/seq_io.h>
-#include <seqan/align.h>
 #include <seqan/graph_msa.h>
 
-using namespace seqan;
-
-struct Auxiliary{
-    std::ofstream                           log_file;
-    CmdOptions                              options;
-    std::vector<std::unique_ptr<BamFileIn>> long_read_file_handles;
-    BamHeader                               long_read_header;   // The bam header object needed to fill bam context
-    BamIndex<Bai>                           long_read_bai;
-    std::vector<std::unique_ptr<BamFileIn>> short_read_file_handles;
-    BamHeader                               short_read_header;  // The bam header object needed to fill bam context
-    BamIndex<Bai>                           short_read_bai;
-    std::vector<std::unique_ptr<FaiIndex>>  faidx_file_handles;
-    std::vector<seqan::BamAlignmentRecord>  polished_reads; // stores records in case info.options.output-polished-bam is true
-
-    Auxiliary(CmdOptions & options_) : options(options_) {}
-
-    Auxiliary() = default;
-    Auxiliary(const Auxiliary&) = default;
-    Auxiliary(Auxiliary&&) = default;
-    Auxiliary& operator=(const Auxiliary&) = default;
-    Auxiliary& operator=(Auxiliary&&) = default;
-};
-
-ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, char const ** argv)
+seqan::ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 {
     // Setup ArgumentParser.
     seqan::ArgumentParser parser("SViper");
     setVersion(parser, "2.0.0");
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "c", "candidate-vcf",
         "A structural variant vcf file (with e.g. <DEL> tags), containing the potential variant sites to be looked at.",
         seqan::ArgParseArgument::INPUT_FILE, "VCF_FILE"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "s", "short-read-bam",
         "The indexed bam file containing short used for polishing at variant sites.",
         seqan::ArgParseArgument::INPUT_FILE, "BAM_FILE"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "l", "long-read-bam",
         "The indexed bam file containing long reads to be polished at variant sites.",
         seqan::ArgParseArgument::INPUT_FILE, "BAM_FILE"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "r", "reference",
         "The indexed (fai) reference file.",
         seqan::ArgParseArgument::INPUT_FILE, "FA_FILE"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "t", "threads",
         "The threads to use.",
         seqan::ArgParseArgument::INTEGER, "INT"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "k", "flanking-region",
         "The flanking region in bp's around a breakpoint to be considered for polishing",
         seqan::ArgParseArgument::INTEGER, "INT"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "x", "coverage-short-reads",
         "The original short read mean coverage. This value is used to restrict short read coverage on extraction to avoid mapping bias",
         seqan::ArgParseArgument::INTEGER, "INT"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "", "median-ins-size-short-reads",
         "The median of the short read insert size (end of read1 until beginning of read2). "
         "This value is used to compute a threshold for error correction.",
         seqan::ArgParseArgument::INTEGER, "INT"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "", "stdev-ins-size-short-reads",
         "The median of the short read insert size (end of read1 until beginning of read2). "
         "This value is used to compute a threshold for error correction..",
         seqan::ArgParseArgument::INTEGER, "INT"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "o", "output-prefix",
         "A name for the output files. The current output is a log file and vcf file, that contains the "
         "polished sequences for each variant.",
         seqan::ArgParseArgument::INPUT_FILE, "PREFIX"));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "v", "verbose",
         "Turn on detailed information about the process."));
 
-    addOption(parser, seqan::ArgParseOption(
+    seqan::addOption(parser, seqan::ArgParseOption(
         "", "output-polished-bam", "For debugging or manual inspection the polished reads can be written to a file."));
 
-    setRequired(parser, "c");
-    setRequired(parser, "l");
-    setRequired(parser, "s");
-    setRequired(parser, "r");
+    seqan::setRequired(parser, "c");
+    seqan::setRequired(parser, "l");
+    seqan::setRequired(parser, "s");
+    seqan::setRequired(parser, "r");
 
-    setMinValue(parser, "k", "50");
-    setMaxValue(parser, "k", "1000");
-    setDefaultValue(parser, "k", "400");
+    seqan::setMinValue(parser, "k", "50");
+    seqan::setMaxValue(parser, "k", "1000");
+    seqan::setDefaultValue(parser, "k", "400");
 
-    setDefaultValue(parser, "t", std::thread::hardware_concurrency());
+    seqan::setDefaultValue(parser, "t", std::thread::hardware_concurrency());
 
     // Parse command line.
     seqan::ArgumentParser::ParseResult res = seqan::parse(parser, argc, argv);
@@ -130,16 +106,16 @@ ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, cha
         return res;
 
     // Extract option values.
-    getOptionValue(options.candidate_file_name, parser, "candidate-vcf");
-    getOptionValue(options.long_read_file_name, parser, "long-read-bam");
-    getOptionValue(options.short_read_file_name, parser, "short-read-bam");
-    getOptionValue(options.reference_file_name, parser, "reference");
-    getOptionValue(options.output_prefix, parser, "output-prefix");
-    getOptionValue(options.flanking_region, parser, "flanking-region");
-    getOptionValue(options.mean_coverage_of_short_reads, parser, "coverage-short-reads");
-    getOptionValue(options.mean_insert_size_of_short_reads, parser, "median-ins-size-short-reads");
-    getOptionValue(options.stdev_insert_size_of_short_reads, parser, "stdev-ins-size-short-reads");
-    getOptionValue(options.threads, parser, "threads");
+    seqan::getOptionValue(options.candidate_file_name, parser, "candidate-vcf");
+    seqan::getOptionValue(options.long_read_file_name, parser, "long-read-bam");
+    seqan::getOptionValue(options.short_read_file_name, parser, "short-read-bam");
+    seqan::getOptionValue(options.reference_file_name, parser, "reference");
+    seqan::getOptionValue(options.output_prefix, parser, "output-prefix");
+    seqan::getOptionValue(options.flanking_region, parser, "flanking-region");
+    seqan::getOptionValue(options.mean_coverage_of_short_reads, parser, "coverage-short-reads");
+    seqan::getOptionValue(options.mean_insert_size_of_short_reads, parser, "median-ins-size-short-reads");
+    seqan::getOptionValue(options.stdev_insert_size_of_short_reads, parser, "stdev-ins-size-short-reads");
+    seqan::getOptionValue(options.threads, parser, "threads");
     options.verbose = isSet(parser, "verbose");
     options.output_polished_bam = isSet(parser, "output-polished-bam");
 
@@ -147,152 +123,6 @@ ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, cha
         options.output_prefix = options.candidate_file_name + "_polished";
 
     return seqan::ArgumentParser::PARSE_OK;
-}
-
-bool prep_file_handles(Auxiliary & info)
-{
-    unsigned num_threads{info.options.threads};
-    omp_set_num_threads(num_threads);
-
-    info.long_read_file_handles.resize(num_threads);
-    info.short_read_file_handles.resize(num_threads);
-    info.faidx_file_handles.resize(num_threads);
-
-    for (unsigned t = 0; t < num_threads; ++t)
-    {
-        try
-        {
-            info.short_read_file_handles[t] = make_unique<BamFileIn>(info.options.short_read_file_name.c_str());
-            readHeader(info.short_read_header, *(info.short_read_file_handles[t]));
-        }
-        catch (Exception & e)
-        {
-            std::cerr << "[ ERROR ] Corrupted bam file " << info.options.short_read_file_name << std::endl;
-            std::cerr << e.what() << std::endl;
-            return false;
-        }
-
-        try
-        {
-            info.long_read_file_handles[t] = make_unique<BamFileIn>(info.options.long_read_file_name.c_str());
-            readHeader(info.long_read_header, *(info.long_read_file_handles[t]));
-        }
-        catch (Exception & e)
-        {
-            std::cerr << "[ ERROR ] Corrupted bam file " << info.options.long_read_file_name << std::endl;
-            std::cerr << e.what() << std::endl;
-            return false;
-        }
-
-        try
-        {
-            info.faidx_file_handles[t] = make_unique<FaiIndex>();
-            if (!open_file_success(*(info.faidx_file_handles[t]), info.options.reference_file_name.c_str()))
-                return false;
-        }
-        catch (Exception & e)
-        {
-            std::cerr << "[ ERROR ] Corrupted faidx file " << info.options.long_read_file_name << std::endl;
-            std::cerr << e.what() << std::endl;
-            return false;
-        }
-    }
-
-    return true;
-}
-
-bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, Auxiliary & info)
-{
-    ifstream input_vcf;           // The candidate variants to polish
-
-    if (!open_file_success(input_vcf, info.options.candidate_file_name.c_str()))
-        return false;
-
-    std::string line{'#'};
-    while (getline(input_vcf, line)) // skip header
-    {
-        if (line[0] != '#')
-            break;
-        else
-            vcf_header.push_back(line); // copy header for output file
-    }
-
-    do variants.push_back(Variant(line)); while (getline(input_vcf, line)); // read in variants
-
-    return true;
-}
-
-bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, Auxiliary & info)
-{
-    ofstream output_vcf;          // The polished variant as output
-    if (!open_file_success(output_vcf, (info.options.output_prefix + ".vcf").c_str()))
-        return false;
-
-    for (size_t hl = 0; hl < vcf_header.size(); ++hl)
-    {
-        if (vcf_header[hl].substr(0, 6) == "##INFO")
-        {
-            bool seen_field_SEQ{false};
-
-            while (vcf_header[hl].substr(0, 6) == "##INFO")
-            {
-                if (vcf_header[hl].substr(0, 14) == "##INFO=<ID=SEQ")
-                    seen_field_SEQ = true;
-                output_vcf << vcf_header[hl] << std::endl;
-                ++hl;
-            }
-
-            // write out SEQ info field only if not already present in the header
-            if (!seen_field_SEQ)
-                output_vcf << "##INFO=<ID=SEQ,Number=1,Type=String,Description=\"The alternative sequence.\">"
-                           << std::endl;
-        }
-        else if (vcf_header[hl].substr(0, 8) == "##FILTER")
-        {
-            while (vcf_header[hl].substr(0, 8) == "##FILTER") // write out all existing filters
-            {
-                output_vcf << vcf_header[hl] << std::endl;
-                ++hl;
-            }
-
-            // write out custom filters
-            output_vcf << "##FILTER=<ID=FAIL0,Description=\"The fasta index has no entry for the given "
-                       << "reference name of the variant.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=FAIL1,Description=\"No long reads in variant region.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=FAIL2,Description=\"No long reads support the variant.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=FAIL3,Description=\"The long read regions do not fit.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=FAIL4,Description=\"Not enough short reads.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=FAIL5,Description=\"The variant was polished away." << std::endl;
-            output_vcf << "##FILTER=<ID=FAIL6,Description=\"The variant reference name does not exist in the " <<
-                          "short read BAM file." << std::endl;
-            output_vcf << "##FILTER=<ID=FAIL7,Description=\"The variant reference name does not exist in the " <<
-                          "long read BAM file." << std::endl;
-        }
-
-        output_vcf << vcf_header[hl] << std::endl;
-    }
-
-    for (auto & var : variants)
-        var.write(output_vcf);
-
-    // Write polished reads if specified to output file
-    // -------------------------------------------------------------------------
-    if (info.options.output_polished_bam)
-    {
-        BamFileOut result_bam(context(*(info.long_read_file_handles[0]))); // The optional output bam file for polished reads
-
-        if (!open_file_success(result_bam, toCString(info.options.output_prefix + "_polished_reads.bam")))
-        {
-            std::cerr << "Did not write resulting bam file." << std::endl;
-        }
-        else
-        {
-            writeHeader(result_bam, info.long_read_header);
-            for (auto const & rec : info.polished_reads)
-                writeRecord(result_bam, rec);
-        }
-    }
-    return true;
 }
 
 bool polish_init(Variant & var, Auxiliary & info)
@@ -306,8 +136,8 @@ bool polish_init(Variant & var, Auxiliary & info)
     {
         #pragma omp critical
         info.log_file << "----------------------------------------------------------------------" << std::endl
-                 << " SKIP Variant " << var.id << " at " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
-                 << "----------------------------------------------------------------------" << std::endl;
+                      << " SKIP Variant " << var.id << " at " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
+                      << "----------------------------------------------------------------------" << std::endl;
         var.filter = "SKIP";
         return false;
     }
@@ -315,8 +145,8 @@ bool polish_init(Variant & var, Auxiliary & info)
     {
         #pragma omp critical
         info.log_file << "----------------------------------------------------------------------" << std::endl
-                 << " SKIP too long Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
-                 << "----------------------------------------------------------------------" << std::endl;
+                      << " SKIP too long Variant " << var.ref_chrom << ":" << var.ref_pos << " " << var.alt_seq << " L:" << var.sv_length << std::endl
+                      << "----------------------------------------------------------------------" << std::endl;
         var.filter = "SKIP";
         return false;
     }
@@ -380,15 +210,15 @@ bool polish_init(Variant & var, Auxiliary & info)
 
     // Extract long reads
     // ---------------------------------------------------------------------
-    vector<BamAlignmentRecord> supporting_records;
+    std::vector<seqan::BamAlignmentRecord> supporting_records;
 
     {
         std::vector<seqan::BamAlignmentRecord> long_reads;
 
         // extract overlapping the start breakpoint +-50 bp's
-        viewRecords(long_reads, long_read_bam, info.long_read_bai, rID_long, var_ref_pos_sub50, var_ref_pos_add50);
+        seqan::viewRecords(long_reads, long_read_bam, info.long_read_bai, rID_long, var_ref_pos_sub50, var_ref_pos_add50);
         // extract overlapping the end breakpoint +-50 bp's
-        viewRecords(long_reads, long_read_bam, info.long_read_bai, rID_long, var_ref_pos_end_sub50, var_ref_pos_end_add50);
+        seqan::viewRecords(long_reads, long_read_bam, info.long_read_bai, rID_long, var_ref_pos_end_sub50, var_ref_pos_end_add50);
 
         if (long_reads.size() == 0)
         {
@@ -463,7 +293,7 @@ bool polish_init(Variant & var, Auxiliary & info)
     // ---------------------------------------------------------------------
     localLog << "--- Cropping long reads with a buffer of +-" << info.options.flanking_region << " around variants." << endl;
 
-    StringSet<Dna5String> supporting_sequences;
+    seqan::StringSet<seqan::Dna5String> supporting_sequences;
     std::vector<seqan::BamAlignmentRecord>::size_type maximum_long_reads = 5;
 
     // sort records such that the highest quality ones are chosen first
@@ -472,7 +302,7 @@ bool polish_init(Variant & var, Auxiliary & info)
     for (unsigned i = 0; i < std::min(maximum_long_reads, supporting_records.size()); ++i)
     {
         auto region = get_read_region_boundaries(supporting_records[i], ref_region_start, ref_region_end);
-        Dna5String reg = seqan::infix(supporting_records[i].seq, get<0>(region), get<1>(region));
+        seqan::Dna5String reg = seqan::infix(supporting_records[i].seq, get<0>(region), get<1>(region));
 
         // For deletions, the expected size of the subsequence is that of
         // the flanking region, since the rest is deleted. For insertions it
@@ -481,22 +311,22 @@ bool polish_init(Variant & var, Auxiliary & info)
         if (var.sv_type == SV_TYPE::INS)
             expected_length += var.sv_length;
 
-        if (abs(static_cast<int32_t>(length(reg)) - expected_length) > info.options.flanking_region)
+        if (abs(static_cast<int32_t>(seqan::length(reg)) - expected_length) > info.options.flanking_region)
         {
-            localLog << "------ Skip Read - Length:" << length(reg) << " Qual:" << supporting_records[i].mapQ
+            localLog << "------ Skip Read - Length:" << seqan::length(reg) << " Qual:" << supporting_records[i].mapQ
                      << " Name: "<< supporting_records[i].qName << endl;
             ++maximum_long_reads;
             return false; // do not use under or oversized region
         }
 
-        appendValue(supporting_sequences, reg);
+        seqan::appendValue(supporting_sequences, reg);
 
         localLog << "------ Region: [" << get<0>(region) << "-" << get<1>(region)
-                 << "] Length:" << length(reg) << " Qual:" << supporting_records[i].mapQ
+                 << "] Length:" << seqan::length(reg) << " Qual:" << supporting_records[i].mapQ
                  << " Name: "<< supporting_records[i].qName << endl;
     }
 
-    if (length(supporting_sequences) == 0)
+    if (seqan::length(supporting_sequences) == 0)
     {
         localLog << "ERROR3: No fitting regions for a " << var.alt_seq
                  << " in region " << var.ref_chrom << ":"
@@ -511,47 +341,47 @@ bool polish_init(Variant & var, Auxiliary & info)
 
     // Build consensus of supporting read regions
     // ---------------------------------------------------------------------
-    vector<double> mapping_qualities;
+    std::vector<double> mapping_qualities;
     mapping_qualities.resize(supporting_records.size());
     for (unsigned i = 0; i < supporting_records.size(); ++i)
         mapping_qualities[i] = (supporting_records[i]).mapQ;
 
-    Dna5String cns = build_consensus(supporting_sequences, mapping_qualities);
+    seqan::Dna5String cns = build_consensus(supporting_sequences, mapping_qualities);
 
-    localLog << "--- Built a consensus with a MSA of length " << length(cns) << "." << endl;
+    localLog << "--- Built a consensus with a MSA of length " << seqan::length(cns) << "." << endl;
 
-    Dna5String polished_ref;
+    seqan::Dna5String polished_ref;
     SViperConfig config{info.options};
     config.ref_flank_length = 500;
 
     {
-        StringSet<Dna5QString> short_reads_1; // reads (first in pair)
-        StringSet<Dna5QString> short_reads_2; // mates (second in pair)
+        seqan::StringSet<seqan::Dna5QString> short_reads_1; // reads (first in pair)
+        seqan::StringSet<seqan::Dna5QString> short_reads_2; // mates (second in pair)
 
         {
             // Extract short reads in region
             // ---------------------------------------------------------------------
-            vector<BamAlignmentRecord> short_reads;
+            std::vector<seqan::BamAlignmentRecord> short_reads;
             // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-region,
             // then extract reads for each break point separately.
             if (ref_region_end - ref_region_start > info.options.flanking_region * 2 + info.options.length_of_short_reads)
             {
                 // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
                 unsigned e = std::min(ref_length, var.ref_pos + info.options.flanking_region);
-                viewRecords(short_reads, short_read_bam, info.short_read_bai, rID_short, ref_region_start, e);
+                seqan::viewRecords(short_reads, short_read_bam, info.short_read_bai, rID_short, ref_region_start, e);
                 cut_down_high_coverage(short_reads, info.options.mean_coverage_of_short_reads);
 
                 // and right of the end of the variant [end-flanking_region, end+flanking_region]
-                vector<BamAlignmentRecord> tmp_short_reads;
+                std::vector<seqan::BamAlignmentRecord> tmp_short_reads;
                 unsigned s = std::max(1, var.ref_pos_end - info.options.flanking_region);
-                viewRecords(tmp_short_reads, short_read_bam, info.short_read_bai, rID_short, s, ref_region_end);
+                seqan::viewRecords(tmp_short_reads, short_read_bam, info.short_read_bai, rID_short, s, ref_region_end);
                 cut_down_high_coverage(tmp_short_reads, info.options.mean_coverage_of_short_reads);
                 append(short_reads, tmp_short_reads);
             }
             else
             {
                 // extract reads left of the start of the variant [start-flanking_region, start]
-                viewRecords(short_reads, short_read_bam, info.short_read_bai, rID_short, ref_region_start, ref_region_end);
+                seqan::viewRecords(short_reads, short_read_bam, info.short_read_bai, rID_short, ref_region_start, ref_region_end);
                 cut_down_high_coverage(short_reads, info.options.mean_coverage_of_short_reads);
             }
 
@@ -570,7 +400,7 @@ bool polish_init(Variant & var, Auxiliary & info)
 
             records_to_read_pairs(short_reads_1, short_reads_2, short_reads, short_read_bam, info.short_read_bai);
 
-            localLog << "--- Extracted " << length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
+            localLog << "--- Extracted " << seqan::length(short_reads_1) << " pairs (proper or dummy pairs)." << std::endl;
         } // scope of short reads ends
 
         // Flank consensus sequence
@@ -578,10 +408,10 @@ bool polish_init(Variant & var, Auxiliary & info)
         // Before polishing, append a reference flank to the conesnsus such that
         // the reads find a high quality anchor for mapping and pairs are correctly
         // identified.
-        Dna5String flanked_consensus = append_ref_flanks(cns, faiIndex,
-                                                         ref_fai_idx, ref_length,
-                                                         ref_region_start, ref_region_end,
-                                                         config.ref_flank_length);
+        seqan::Dna5String flanked_consensus = append_ref_flanks(cns, faiIndex,
+                                                                ref_fai_idx, ref_length,
+                                                                ref_region_start, ref_region_end,
+                                                                config.ref_flank_length);
 
         // Polish flanked consensus sequence with short reads
         // ---------------------------------------------------------------------
@@ -600,13 +430,13 @@ bool polish_init(Variant & var, Auxiliary & info)
                  << std::endl;
     } // scope of short_reads1 and short_reads2 ends
 
-    for (unsigned i = config.ref_flank_length; i < length(config.cov_profile) - config.ref_flank_length; ++i)
+    for (unsigned i = config.ref_flank_length; i < seqan::length(config.cov_profile) - config.ref_flank_length; ++i)
         localLog << config.cov_profile[i] << " ";
     localLog << std::endl;
 
     // Align polished sequence to reference
     // ---------------------------------------------------------------------
-    Dna5String ref_part;
+    seqan::Dna5String ref_part;
     seqan::readRegion(ref_part, faiIndex, ref_fai_idx,
                       std::max(1u, ref_region_start - config.ref_flank_length),
                       std::min(ref_region_end + config.ref_flank_length, static_cast<unsigned>(ref_length)));
@@ -621,7 +451,7 @@ bool polish_init(Variant & var, Auxiliary & info)
                            seqan::AlignConfig<false, false, false, false>(),
                            seqan::ConvexGaps());
 
-    BamAlignmentRecord final_record{};
+    seqan::BamAlignmentRecord final_record{};
     final_record.beginPos = std::max(0u, ref_region_start - config.ref_flank_length);
     final_record.seq = polished_ref;
     seqan::getIdByName(final_record.rID, seqan::contigNamesCache(seqan::context(long_read_bam)), var.ref_chrom);
