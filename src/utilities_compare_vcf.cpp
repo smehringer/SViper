@@ -11,8 +11,6 @@
 #include <basics.h>
 #include <variant.h>
 
-using namespace std;
-
 // global variable of the allowed deviation until SV's are still considered to be
 // the same
 const double ALLOWED_POS_DEVIATION = 0.95; // percent of the sv_length
@@ -69,13 +67,13 @@ parseCommandLine(CmdOptionsCompareVcf & options, int argc, char const ** argv)
 // IMPORTANT: Those operators are unusual and can e.g. not be used for sorting
 bool operator ==(const Variant& lhs, const Variant& rhs)
 {
-    int length_dev = max(80.0, (ALLOWED_LENGTH_DEVIATION * ((lhs.sv_length + rhs.sv_length)/2)));
-    int pos_dev = max(100.0, (ALLOWED_POS_DEVIATION * ((lhs.sv_length + rhs.sv_length)/2)));
+    int length_dev = std::max(80.0, (ALLOWED_LENGTH_DEVIATION * ((lhs.sv_length + rhs.sv_length)/2)));
+    int pos_dev = std::max(100.0, (ALLOWED_POS_DEVIATION * ((lhs.sv_length + rhs.sv_length)/2)));
 
     return (lhs.ref_chrom == rhs.ref_chrom) &&
            (lhs.sv_type == rhs.sv_type) &&
-           (abs(lhs.sv_length - rhs.sv_length) < length_dev) &&
-           (abs(lhs.ref_pos - rhs.ref_pos) < pos_dev);
+           (std::abs(lhs.sv_length - rhs.sv_length) < length_dev) &&
+           (std::abs(lhs.ref_pos - rhs.ref_pos) < pos_dev);
 }
 
 bool operator <(const Variant& lhs, const Variant& rhs)
@@ -94,7 +92,7 @@ bool operator >(const Variant& lhs, const Variant& rhs)
         return lhs.ref_chrom > rhs.ref_chrom;
 }
 
-unsigned sum(vector<unsigned> v)
+unsigned sum(std::vector<unsigned> v)
 {
     unsigned sum{0};
     for (auto n : v)
@@ -110,19 +108,19 @@ int main(int argc, const char ** argv)
     if (res != seqan::ArgumentParser::PARSE_OK)
         return res == seqan::ArgumentParser::PARSE_ERROR;
 
-    ifstream vcf_file(options.vcf_file_name.c_str());  // must be sorted by position grouped by chromosome
-    ifstream vcf_file_golden(options.golden_vcf_file_name.c_str());
-    ofstream log_file((options.vcf_file_name + ".log").c_str());
+    std::ifstream vcf_file(options.vcf_file_name.c_str());  // must be sorted by position grouped by chromosome
+    std::ifstream vcf_file_golden(options.golden_vcf_file_name.c_str());
+    std::ofstream log_file((options.vcf_file_name + ".log").c_str());
 
     if (!vcf_file.is_open())
     {
-        cerr << "[ERROR] Could not open file " << options.vcf_file_name << endl;
+        std::cerr << "[ERROR] Could not open file " << options.vcf_file_name << std::endl;
         return 1;
     }
 
     if (!vcf_file_golden.is_open())
     {
-        cerr << "[ERROR] Could not open file " << options.golden_vcf_file_name << endl;
+        std::cerr << "[ERROR] Could not open file " << options.golden_vcf_file_name << std::endl;
         vcf_file.close();
         return 1;
     }
@@ -135,7 +133,7 @@ int main(int argc, const char ** argv)
     // Initialization:
     // -------------------------------------------------------------------------
     // Skip all headers and init variant with first line in file
-    string dummy_line{"#"}; // used throughout processing to read into
+    std::string dummy_line{"#"}; // used throughout processing to read into
 
     while (dummy_line[0] == '#')
         getline(vcf_file, dummy_line);
@@ -153,8 +151,8 @@ int main(int argc, const char ** argv)
     // -------------------------------------------------------------------------
     // Now go through all vcf files trying to pair the variants
     // stayed the same = total - impr - wors - notScored
-    vector<vector<unsigned>> bp_deviation_after_to_golden{{}, {}, {}, {}, {}, {}}; // for golden
-    vector<unsigned> variants_unique_to_golden{0, 0, 0, 0, 0, 0};
+    std::vector<std::vector<unsigned>> bp_deviation_after_to_golden{{}, {}, {}, {}, {}, {}}; // for golden
+    std::vector<unsigned> variants_unique_to_golden{0, 0, 0, 0, 0, 0};
 
     log_file << "CLASS"
              << "\t" << "ID" /*which is the golden id if matched.*/
@@ -168,7 +166,7 @@ int main(int argc, const char ** argv)
              << "\t" << "SV_LENGTH_DIFF_TO_TRUTH"
              << "\t" << "POLISHING_SCORE"
              << "\t" << "ERROR_CODE"
-             << endl;
+             << std::endl;
 
     while (true) // will be broken if one of the vcf file is at end
     {
@@ -188,7 +186,7 @@ int main(int argc, const char ** argv)
                      << "\tNA"
                      << "\tNA"
                      << "\tNA"
-                     << endl;
+                     << std::endl;
 
             if (!getline(vcf_file_golden, dummy_line))
             {
@@ -221,7 +219,7 @@ int main(int argc, const char ** argv)
                          << "\t" << (curr_var.sv_length - curr_var_golden.sv_length)
                          << "\t" << curr_var.quality
                          << "\t" << curr_var.filter
-                         << endl;
+                         << std::endl;
 
                 if (!getline(vcf_file_golden, dummy_line))
                     golden = false;
@@ -242,7 +240,7 @@ int main(int argc, const char ** argv)
                          << "\tNA"
                          << "\t" << curr_var.quality
                          << "\t" << curr_var.filter
-                         << endl;
+                         << std::endl;
             }
         }
         else // variant failed polishing
@@ -264,7 +262,7 @@ int main(int argc, const char ** argv)
                          << "\t" << (curr_var.sv_length - curr_var_golden.sv_length)
                          << "\t" << curr_var.quality
                          << "\t" << curr_var.filter
-                         << endl;
+                         << std::endl;
 
                 if (!getline(vcf_file_golden, dummy_line))
                     golden = false;
@@ -285,7 +283,7 @@ int main(int argc, const char ** argv)
                          << "\tNA"
                          << "\t" << curr_var.quality
                          << "\t" << curr_var.filter
-                         << endl;
+                         << std::endl;
             }
         }
 

@@ -69,22 +69,22 @@ struct bamRecordMapQGreater
 //! But the primary alignment shell always be at the very top.
 struct bamRecordQualityLess
 {
-    bool operator()(BamAlignmentRecord const & lhs, BamAlignmentRecord const & rhs) const
+    bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
     {
-        if (!hasFlagSupplementary(lhs) && !hasFlagSecondary(lhs))     // lhs is primary
+        if (!seqan::hasFlagSupplementary(lhs) && !seqan::hasFlagSecondary(lhs))     // lhs is primary
         {
-            if (!hasFlagSupplementary(rhs) && !hasFlagSecondary(rhs)) // rhs also primary
+            if (!seqan::hasFlagSupplementary(rhs) && !seqan::hasFlagSecondary(rhs)) // rhs also primary
                 return lhs.mapQ > rhs.mapQ;
             else
                 return true;
         }
-        if (!hasFlagSupplementary(rhs) && !hasFlagSecondary(rhs))     // rhs is primary
+        if (!seqan::hasFlagSupplementary(rhs) && !seqan::hasFlagSecondary(rhs))     // rhs is primary
             return false;
         return lhs.mapQ > rhs.mapQ;
     }
 };
 
-//! Comparator for BamAlignmentRecords
+//! Comparator for seqan::BamAlignmentRecords
 struct bamRecordEqual
 {
     bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
@@ -106,7 +106,7 @@ struct bamRecordSeqEqual
 //! and within the same position by mapping quality (descending)
 struct bamRecordPosLessQualityGreater
 {
-    bool operator()(BamAlignmentRecord const & lhs, BamAlignmentRecord const & rhs) const
+    bool operator()(seqan::BamAlignmentRecord const & lhs, seqan::BamAlignmentRecord const & rhs) const
     {
         if (lhs.beginPos == rhs.beginPos)
             return (lhs.mapQ > rhs.mapQ);
@@ -135,7 +135,7 @@ template <typename lambda_type>
 void advance_in_cigar(unsigned & cigar_pos,
                       int & ref_pos,
                       int & read_pos,
-                      String<CigarElement<char, unsigned>> const & cigar,
+                      seqan::String<seqan::CigarElement<char, unsigned>> const & cigar,
                       lambda_type && stop_criterion)
 {
     while (cigar_pos < length(cigar))
@@ -178,20 +178,20 @@ void advance_in_cigar(unsigned & cigar_pos,
  *         correspond to the start and end position of the reference given the
  *         alignment represented by the cigar string.
  */
-tuple<int, int> get_read_region_boundaries(BamAlignmentRecord const & record,
-                                           int ref_region_begin,
-                                           int ref_region_end)
+inline std::tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord const & record,
+                                                       int ref_region_begin,
+                                                       int ref_region_end)
 {
     int read_region_begin;
     int read_region_end;
 
     if (ref_region_begin >= ref_region_end)
     {
-        cerr << "[GET READ REGION ERROR]"
-             << " for record " << record.qName
-             << " Start (" << ref_region_begin
-             << ") >= End (" << ref_region_end << ")" << endl;
-             return make_tuple(0, 0);
+        std::cerr << "[GET READ REGION ERROR]"
+                  << " for record " << record.qName
+                  << " Start (" << ref_region_begin
+                  << ") >= End (" << ref_region_end << ")" << std::endl;
+             return std::make_tuple(0, 0);
     }
 
     // advance to begin of region of interest
@@ -229,17 +229,17 @@ tuple<int, int> get_read_region_boundaries(BamAlignmentRecord const & record,
         read_region_end = read_pos; // should never happen.. but just in case
     }
 
-    return make_tuple(read_region_begin, read_region_end);
+    return std::make_tuple(read_region_begin, read_region_end);
 }
 
 namespace seqan
 {
 //!\brief Overload appendValue for seqan::viewRecords, such that quality is checked
 // before appending a read
-void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
-                 seqan::BamAlignmentRecord & rec)
+inline void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
+                        seqan::BamAlignmentRecord & rec)
 {
-    if (!hasFlagQCNoPass(rec) && !hasFlagDuplicate(rec) && // passes QC
+    if (!seqan::hasFlagQCNoPass(rec) && !seqan::hasFlagDuplicate(rec) && // passes QC
         rec.mapQ >= 5)                                    // only fairly unique hits
         records.push_back(rec);
 }
@@ -255,21 +255,21 @@ void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
  * @param end        The end of the region to extract flanks for.
  * @param length     The length of each flank.
  */
-seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
-                                    seqan::FaiIndex const & fai_index,
-                                    unsigned fai_idx,
-                                    int ref_length,
-                                    int start,
-                                    int end,
-                                    int length)
+inline seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
+                                           seqan::FaiIndex const & fai_index,
+                                           unsigned fai_idx,
+                                           int ref_length,
+                                           int start,
+                                           int end,
+                                           int length)
 {
     SEQAN_ASSERT(start <= end);
 
     seqan::Dna5String leftFlank;  // region: [start-length, start]
     seqan::Dna5String rightFlank; // region: [end, end+length]
 
-    seqan::readRegion(leftFlank, fai_index, fai_idx, max(0, start - length), max(0, start));
-    seqan::readRegion(rightFlank, fai_index, fai_idx, min(end, ref_length), min(end + length, ref_length));
+    seqan::readRegion(leftFlank, fai_index, fai_idx, std::max(0, start - length), std::max(0, start));
+    seqan::readRegion(rightFlank, fai_index, fai_idx, std::min(end, ref_length), std::min(end + length, ref_length));
 
     seqan::Dna5String new_seq = leftFlank;
     seqan::append(new_seq, seq);
@@ -292,27 +292,27 @@ seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
  * @param end        The end of the region to extract flanks for.
  * @param length     The length of each flank.
  */
-void records_to_read_pairs(StringSet<Dna5QString> & reads1,
-                           StringSet<Dna5QString> & reads2,
-                           std::vector<BamAlignmentRecord> & records,
-                           seqan::BamFileIn & bam_file,
-                           seqan::BamIndex<seqan::Bai> const & bam_index)
+inline void records_to_read_pairs(seqan::StringSet<seqan::Dna5QString> & reads1,
+                                  seqan::StringSet<seqan::Dna5QString> & reads2,
+                                  std::vector<seqan::BamAlignmentRecord> & records,
+                                  seqan::BamFileIn & bam_file,
+                                  seqan::BamIndex<seqan::Bai> const & bam_index)
 {
     // sort records by name
     std::sort(records.begin(), records.end(), bamRecordNameLessSeqLessPrimFirst());
     auto last = std::unique(records.begin(), records.end(), bamRecordSeqEqual());  // based on sequence to avoid mapping the same sequence
     records.erase(last, records.end());
 
-    Dna5QString dummy_seq{}; // read sequence for dummy record is an empty string
-    CharString id1; // stores last seen id
+    seqan::Dna5QString dummy_seq{}; // read sequence for dummy record is an empty string
+    seqan::CharString id1; // stores last seen id
 
     for (unsigned i = 0; i < length(records); ++i)
     {
-        Dna5QString seq = records[i].seq;
-        assignQualities(seq, records[i].qual);
+        seqan::Dna5QString seq = records[i].seq;
+        seqan::assignQualities(seq, records[i].qual);
 
-        if (hasFlagRC(records[i]))
-            reverseComplement(seq);
+        if (seqan::hasFlagRC(records[i]))
+            seqan::reverseComplement(seq);
 
         if (length(reads1) == length(reads2)) // new read instead of potential mate
         {
@@ -334,18 +334,18 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
             // We ONLY want to hunt for mates of pairs of the 2. case, since those
             // can be interesting, e.g. for novel insertions.
 
-            if (!hasFlagAllProper(records[i - 1]))
+            if (!seqan::hasFlagAllProper(records[i - 1]))
             {
                 // hunt mate for read in records[i - 1]
-                BamAlignmentRecord mate = mateHunt(records[i - 1], bam_file, bam_index);
+                seqan::BamAlignmentRecord mate = mateHunt(records[i - 1], bam_file, bam_index);
 
                 if (mate.qName == records[i - 1].qName) // mateHunt was successful
                 {
-                    Dna5QString mseq = mate.seq;
-                    assignQualities(mseq, mate.qual);
+                    seqan::Dna5QString mseq = mate.seq;
+                    seqan::assignQualities(mseq, mate.qual);
 
-                    if (hasFlagRC(mate))
-                        reverseComplement(mseq);
+                    if (seqan::hasFlagRC(mate))
+                        seqan::reverseComplement(mseq);
 
                     appendValue(reads2, mseq);
                 }
@@ -371,12 +371,12 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
     if (length(reads1) != length(reads2))
     {
         // hunt mate for read in records[i - 1]
-        BamAlignmentRecord mate = mateHunt(records[length(records) - 1], bam_file, bam_index);
+        seqan::BamAlignmentRecord mate = mateHunt(records[length(records) - 1], bam_file, bam_index);
 
         if (mate.qName == records[length(records) - 1].qName) // mateHunt was successful
         {
-            Dna5QString mseq = mate.seq;
-            assignQualities(mseq, mate.qual);
+            seqan::Dna5QString mseq = mate.seq;
+            seqan::assignQualities(mseq, mate.qual);
             appendValue(reads2, mseq);
         }
         else
@@ -387,8 +387,8 @@ void records_to_read_pairs(StringSet<Dna5QString> & reads1,
     }
 }
 
-void cut_down_high_coverage(std::vector<seqan::BamAlignmentRecord> & short_reads,
-                            int16_t mean_coverage_of_short_reads)
+inline void cut_down_high_coverage(std::vector<seqan::BamAlignmentRecord> & short_reads,
+                                   int16_t mean_coverage_of_short_reads)
 {
     if (short_reads.size() == 0)
         return;
@@ -468,11 +468,11 @@ void subsample(container_type & c1, container_type & c2, unsigned N)
  * @param quals The corresponding the qualities for each sequence (position based).
  * @return  Returns the consensus sequence obtained from the MSA profile.
  */
-inline Dna5String build_consensus(StringSet<Dna5String> const & seqs,
-                                  vector<double> const & quals) // mapping qualities
+inline seqan::Dna5String build_consensus(seqan::StringSet<seqan::Dna5String> const & seqs,
+                                         std::vector<double> const & quals) // mapping qualities
 {
     // TODO:: include base qualities from bam file
-    Align<Dna5String> align;
+    seqan::Align<seqan::Dna5String> align;
     seqan::resize(seqan::rows(align), seqan::length(seqs));
     for (unsigned i = 0; i < seqan::length(seqs); ++i)
         seqan::assignSource(seqan::row(align, i), seqs[i]);
@@ -496,7 +496,7 @@ inline Dna5String build_consensus(StringSet<Dna5String> const & seqs,
         int idx = seqan::getMaxIndex(profile[0]);
 
         if (idx < 4)  // is not gap
-            seqan::appendValue(consensus, Dna(idx));
+            seqan::appendValue(consensus, seqan::Dna(idx));
 
         // clear profile (Note: clear(profile) compiles but has not the correct effect
         for (auto & c : profile[0].count)

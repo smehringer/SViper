@@ -9,24 +9,21 @@
 
 #include <config.h>
 
-using namespace std;
-using namespace seqan;
-
 /*! Find the mate of a read by searching in the BAM file.
  *
  */
-BamAlignmentRecord mateHunt(BamAlignmentRecord const & record,
-                             BamFileIn & bam_file,
-                             BamIndex<Bai> const & bam_index)
+inline seqan::BamAlignmentRecord mateHunt(seqan::BamAlignmentRecord const & record,
+                                          seqan::BamFileIn & bam_file,
+                                          seqan::BamIndex<seqan::Bai> const & bam_index)
 {
-    BamAlignmentRecord mate{}; // default/empty record
+    seqan::BamAlignmentRecord mate{}; // default/empty record
 
     bool hasAlignments = false;
-    if (!jumpToRegion(bam_file, hasAlignments, record.rNextId, record.pNext+1, record.pNext+2, bam_index))
+    if (!seqan::jumpToRegion(bam_file, hasAlignments, record.rNextId, record.pNext+1, record.pNext+2, bam_index))
     {
 #ifndef NDEBUG
         std::cerr << "[ERROR] mateHunt - Could not jump to region "
-                  << contigNames(context(bam_file))[record.rNextId] << ":" << record.pNext
+                  << seqan::contigNames(seqan::context(bam_file))[record.rNextId] << ":" << record.pNext
                   << " to find a records mate." << std::endl;
 #endif
         return mate;
@@ -36,15 +33,15 @@ BamAlignmentRecord mateHunt(BamAlignmentRecord const & record,
     {
 #ifndef NDEBUG
         std::cerr << "[ERROR] mateHunt - Could not find any reads in region "
-                  << contigNames(context(bam_file))[record.rNextId] << ":" << record.pNext
+                  << seqan::contigNames(seqan::context(bam_file))[record.rNextId] << ":" << record.pNext
                   << " to find a records mate." << std::endl;
 #endif
         return mate;
     }
 
-    while (!atEnd(bam_file))
+    while (!seqan::atEnd(bam_file))
     {
-        readRecord(mate, bam_file);
+        seqan::readRecord(mate, bam_file);
 
         if (mate.qName == record.qName)
             return mate;
@@ -55,6 +52,6 @@ BamAlignmentRecord mateHunt(BamAlignmentRecord const & record,
 
     // If I arrive here, no mate was found (return statement in while loop),
     // therefore clear mate entry before returning some last read record.
-    mate = BamAlignmentRecord();
+    mate = seqan::BamAlignmentRecord();
     return mate;
 }

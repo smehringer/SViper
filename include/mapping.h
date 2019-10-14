@@ -79,8 +79,8 @@ inline int gapsBeginPos(seqan::Gaps<string_type, seqan::ArrayGaps> const & gaps)
  * @param read        The read sequence to be alignmed.
  * @param ref         The ref sequence to align `read` to.
  */
-inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsReadOut,
-                            seqan::Gaps<Dna5String, seqan::ArrayGaps> & gapsRefOut,
+inline bool map_single_read(seqan::Gaps<seqan::Dna5QString, seqan::ArrayGaps> & gapsReadOut,
+                            seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> & gapsRefOut,
                             seqan::Dna5QString & read,
                             seqan::Dna5String & ref,
                             double & mapQ)
@@ -143,14 +143,14 @@ inline bool map_single_read(seqan::Gaps<Dna5QString, seqan::ArrayGaps> & gapsRea
  * @param reads2 The read sequences of all "second-in-pair" reads.
  * @param ref         The ref sequence to align the read sequences to.
  */
-vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & reads1,
-                               seqan::StringSet<seqan::Dna5QString> const & reads2,
-                               seqan::Dna5String & ref,
-                               SViperConfig const & config)
+std::vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const & reads1,
+                                    seqan::StringSet<seqan::Dna5QString> const & reads2,
+                                    seqan::Dna5String & ref,
+                                    SViperConfig const & config)
 {
     SEQAN_ASSERT_EQ(seqan::length(reads1), seqan::length(reads2));
 
-    vector<Mapping_object> mobs;
+    std::vector<Mapping_object> mobs;
     //mobs.resize(length(reads1)); TODO
 
     for (unsigned ridx = 0; ridx < seqan::length(reads1); ++ridx) // for every read (pair)
