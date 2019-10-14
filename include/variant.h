@@ -179,7 +179,7 @@ struct Variant
     }
 };
 
-bool is_same_sv_type(char cigar_operation, SV_TYPE type)
+inline bool is_same_sv_type(char cigar_operation, SV_TYPE type)
 {
     if ((cigar_operation == 'D') && (type == SV_TYPE::DEL))
         return true;
@@ -188,7 +188,7 @@ bool is_same_sv_type(char cigar_operation, SV_TYPE type)
     return false;
 }
 
-bool record_supports_variant(seqan::BamAlignmentRecord const & record, Variant const & variant)
+inline bool record_supports_variant(seqan::BamAlignmentRecord const & record, Variant const & variant)
 {
     bool is_supporting{false};
 
@@ -226,7 +226,7 @@ bool record_supports_variant(seqan::BamAlignmentRecord const & record, Variant c
     return is_supporting;
 }
 
-bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
+inline bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & variant)
 {
     bool has_variant{false};
 

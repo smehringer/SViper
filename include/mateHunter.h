@@ -12,9 +12,9 @@
 /*! Find the mate of a read by searching in the BAM file.
  *
  */
-seqan::BamAlignmentRecord mateHunt(seqan::BamAlignmentRecord const & record,
-                                   seqan::BamFileIn & bam_file,
-                                   seqan::BamIndex<seqan::Bai> const & bam_index)
+inline seqan::BamAlignmentRecord mateHunt(seqan::BamAlignmentRecord const & record,
+                                          seqan::BamFileIn & bam_file,
+                                          seqan::BamIndex<seqan::Bai> const & bam_index)
 {
     seqan::BamAlignmentRecord mate{}; // default/empty record
 

@@ -178,9 +178,9 @@ void advance_in_cigar(unsigned & cigar_pos,
  *         correspond to the start and end position of the reference given the
  *         alignment represented by the cigar string.
  */
-std::tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord const & record,
-                                           int ref_region_begin,
-                                           int ref_region_end)
+inline std::tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord const & record,
+                                                       int ref_region_begin,
+                                                       int ref_region_end)
 {
     int read_region_begin;
     int read_region_end;
@@ -188,9 +188,9 @@ std::tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord const 
     if (ref_region_begin >= ref_region_end)
     {
         std::cerr << "[GET READ REGION ERROR]"
-             << " for record " << record.qName
-             << " Start (" << ref_region_begin
-             << ") >= End (" << ref_region_end << ")" << std::endl;
+                  << " for record " << record.qName
+                  << " Start (" << ref_region_begin
+                  << ") >= End (" << ref_region_end << ")" << std::endl;
              return std::make_tuple(0, 0);
     }
 
@@ -236,8 +236,8 @@ namespace seqan
 {
 //!\brief Overload appendValue for seqan::viewRecords, such that quality is checked
 // before appending a read
-void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
-                 seqan::BamAlignmentRecord & rec)
+inline void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
+                        seqan::BamAlignmentRecord & rec)
 {
     if (!seqan::hasFlagQCNoPass(rec) && !seqan::hasFlagDuplicate(rec) && // passes QC
         rec.mapQ >= 5)                                    // only fairly unique hits
@@ -255,13 +255,13 @@ void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
  * @param end        The end of the region to extract flanks for.
  * @param length     The length of each flank.
  */
-seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
-                                    seqan::FaiIndex const & fai_index,
-                                    unsigned fai_idx,
-                                    int ref_length,
-                                    int start,
-                                    int end,
-                                    int length)
+inline seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
+                                           seqan::FaiIndex const & fai_index,
+                                           unsigned fai_idx,
+                                           int ref_length,
+                                           int start,
+                                           int end,
+                                           int length)
 {
     SEQAN_ASSERT(start <= end);
 
@@ -292,11 +292,11 @@ seqan::Dna5String append_ref_flanks(seqan::Dna5String const & seq,
  * @param end        The end of the region to extract flanks for.
  * @param length     The length of each flank.
  */
-void records_to_read_pairs(seqan::StringSet<seqan::Dna5QString> & reads1,
-                           seqan::StringSet<seqan::Dna5QString> & reads2,
-                           std::vector<seqan::BamAlignmentRecord> & records,
-                           seqan::BamFileIn & bam_file,
-                           seqan::BamIndex<seqan::Bai> const & bam_index)
+inline void records_to_read_pairs(seqan::StringSet<seqan::Dna5QString> & reads1,
+                                  seqan::StringSet<seqan::Dna5QString> & reads2,
+                                  std::vector<seqan::BamAlignmentRecord> & records,
+                                  seqan::BamFileIn & bam_file,
+                                  seqan::BamIndex<seqan::Bai> const & bam_index)
 {
     // sort records by name
     std::sort(records.begin(), records.end(), bamRecordNameLessSeqLessPrimFirst());
@@ -387,8 +387,8 @@ void records_to_read_pairs(seqan::StringSet<seqan::Dna5QString> & reads1,
     }
 }
 
-void cut_down_high_coverage(std::vector<seqan::BamAlignmentRecord> & short_reads,
-                            int16_t mean_coverage_of_short_reads)
+inline void cut_down_high_coverage(std::vector<seqan::BamAlignmentRecord> & short_reads,
+                                   int16_t mean_coverage_of_short_reads)
 {
     if (short_reads.size() == 0)
         return;
@@ -469,7 +469,7 @@ void subsample(container_type & c1, container_type & c2, unsigned N)
  * @return  Returns the consensus sequence obtained from the MSA profile.
  */
 inline seqan::Dna5String build_consensus(seqan::StringSet<seqan::Dna5String> const & seqs,
-                                  std::vector<double> const & quals) // mapping qualities
+                                         std::vector<double> const & quals) // mapping qualities
 {
     // TODO:: include base qualities from bam file
     seqan::Align<seqan::Dna5String> align;

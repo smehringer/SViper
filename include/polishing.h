@@ -232,8 +232,8 @@ void compute_baseQ_stats(SViperConfig & config,
 }
 
 inline seqan::Dna5String consensus_from_profile(seqan::String<seqan::ProfileChar<seqan::Dna5, double> > const & profile,
-                                         seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> const & contigGaps,
-                                         SViperConfig & config) // ebuffer at beginning and end
+                                                seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> const & contigGaps,
+                                                SViperConfig & config) // ebuffer at beginning and end
 {
     SEQAN_ASSERT(seqan::length(profile) == seqan::length(contigGaps));
 
@@ -291,9 +291,9 @@ inline seqan::Dna5String consensus_from_profile(seqan::String<seqan::ProfileChar
 }
 
 seqan::Dna5String polish(seqan::StringSet<seqan::Dna5QString> const & reads1,
-                  seqan::StringSet<seqan::Dna5QString> const & reads2,
-                  seqan::Dna5String ref, // TODO:: reference?
-                  SViperConfig & config)
+                         seqan::StringSet<seqan::Dna5QString> const & reads2,
+                         seqan::Dna5String ref, // TODO:: reference?
+                         SViperConfig & config)
 {
     seqan::Gaps<seqan::Dna5String, seqan::ArrayGaps> contigGaps(ref);
 
@@ -315,9 +315,9 @@ seqan::Dna5String polish(seqan::StringSet<seqan::Dna5QString> const & reads1,
 }
 
 seqan::Dna5String polish_to_perfection(seqan::StringSet<seqan::Dna5QString> const & reads1,
-                                seqan::StringSet<seqan::Dna5QString> const & reads2,
-                                seqan::Dna5String ref,
-                                SViperConfig & config)
+                                       seqan::StringSet<seqan::Dna5QString> const & reads2,
+                                       seqan::Dna5String ref,
+                                       SViperConfig & config)
 {
     seqan::Dna5String old_ref;
 
