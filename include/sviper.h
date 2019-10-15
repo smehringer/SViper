@@ -125,7 +125,7 @@ seqan::ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int ar
     return seqan::ArgumentParser::PARSE_OK;
 }
 
-bool polish_init(Variant & var, Auxiliary & info)
+bool polish_variant(Variant & var, input_output_information & info)
 {
     std::stringstream localLog;
     seqan::BamFileIn & short_read_bam = *(info.short_read_file_handles[omp_get_thread_num()]);
@@ -171,8 +171,8 @@ bool polish_init(Variant & var, Auxiliary & info)
     // cash variables to avoid recomputing
     // Note that the positions are one based/ since the VCF format is one based
     int const ref_length       = seqan::sequenceLength(faiIndex, ref_fai_idx);
-    int const ref_region_start = std::max(1, var.ref_pos - info.options.flanking_region);
-    int const ref_region_end   = std::min(ref_length, var.ref_pos_end + info.options.flanking_region);
+    int const ref_region_start = std::max(1, var.ref_pos - info.cmd_options.flanking_region);
+    int const ref_region_end   = std::min(ref_length, var.ref_pos_end + info.cmd_options.flanking_region);
 
     int const var_ref_pos_add50     = std::min(ref_length, var.ref_pos + 50);
     int const var_ref_pos_sub50     = std::max(1, var.ref_pos - 50);
@@ -291,7 +291,7 @@ bool polish_init(Variant & var, Auxiliary & info)
 
     // Crop fasta sequence of each supporting read for consensus
     // ---------------------------------------------------------------------
-    localLog << "--- Cropping long reads with a buffer of +-" << info.options.flanking_region << " around variants." << std::endl;
+    localLog << "--- Cropping long reads with a buffer of +-" << info.cmd_options.flanking_region << " around variants." << std::endl;
 
     seqan::StringSet<seqan::Dna5String> supporting_sequences;
     std::vector<seqan::BamAlignmentRecord>::size_type maximum_long_reads = 5;
@@ -307,11 +307,11 @@ bool polish_init(Variant & var, Auxiliary & info)
         // For deletions, the expected size of the subsequence is that of
         // the flanking region, since the rest is deleted. For insertions it
         // is that of the flanking region + the insertion length.
-        int32_t expected_length{2*info.options.flanking_region};
+        int32_t expected_length{2*info.cmd_options.flanking_region};
         if (var.sv_type == SV_TYPE::INS)
             expected_length += var.sv_length;
 
-        if (abs(static_cast<int32_t>(seqan::length(reg)) - expected_length) > info.options.flanking_region)
+        if (abs(static_cast<int32_t>(seqan::length(reg)) - expected_length) > info.cmd_options.flanking_region)
         {
             localLog << "------ Skip Read - Length:" << seqan::length(reg) << " Qual:" << supporting_records[i].mapQ
                      << " Name: "<< supporting_records[i].qName << std::endl;
@@ -351,7 +351,7 @@ bool polish_init(Variant & var, Auxiliary & info)
     localLog << "--- Built a consensus with a MSA of length " << seqan::length(cns) << "." << std::endl;
 
     seqan::Dna5String polished_ref;
-    SViperConfig config{info.options};
+    SViperConfig config{info.cmd_options};
     config.ref_flank_length = 500;
 
     {
@@ -364,25 +364,25 @@ bool polish_init(Variant & var, Auxiliary & info)
             std::vector<seqan::BamAlignmentRecord> short_reads;
             // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-region,
             // then extract reads for each break point separately.
-            if (ref_region_end - ref_region_start > info.options.flanking_region * 2 + info.options.length_of_short_reads)
+            if (ref_region_end - ref_region_start > info.cmd_options.flanking_region * 2 + info.cmd_options.length_of_short_reads)
             {
                 // extract reads left of the start of the variant [start-flanking_region, start+flanking_region]
-                unsigned e = std::min(ref_length, var.ref_pos + info.options.flanking_region);
+                unsigned e = std::min(ref_length, var.ref_pos + info.cmd_options.flanking_region);
                 seqan::viewRecords(short_reads, short_read_bam, info.short_read_bai, rID_short, ref_region_start, e);
-                cut_down_high_coverage(short_reads, info.options.mean_coverage_of_short_reads);
+                cut_down_high_coverage(short_reads, info.cmd_options.mean_coverage_of_short_reads);
 
                 // and right of the end of the variant [end-flanking_region, end+flanking_region]
                 std::vector<seqan::BamAlignmentRecord> tmp_short_reads;
-                unsigned s = std::max(1, var.ref_pos_end - info.options.flanking_region);
+                unsigned s = std::max(1, var.ref_pos_end - info.cmd_options.flanking_region);
                 seqan::viewRecords(tmp_short_reads, short_read_bam, info.short_read_bai, rID_short, s, ref_region_end);
-                cut_down_high_coverage(tmp_short_reads, info.options.mean_coverage_of_short_reads);
+                cut_down_high_coverage(tmp_short_reads, info.cmd_options.mean_coverage_of_short_reads);
                 append(short_reads, tmp_short_reads);
             }
             else
             {
                 // extract reads left of the start of the variant [start-flanking_region, start]
                 seqan::viewRecords(short_reads, short_read_bam, info.short_read_bai, rID_short, ref_region_start, ref_region_end);
-                cut_down_high_coverage(short_reads, info.options.mean_coverage_of_short_reads);
+                cut_down_high_coverage(short_reads, info.cmd_options.mean_coverage_of_short_reads);
             }
 
             if (short_reads.size() < 20)
@@ -482,7 +482,7 @@ bool polish_init(Variant & var, Auxiliary & info)
                  << std::endl;
     }
 
-    if (info.options.output_polished_bam)
+    if (info.cmd_options.output_polished_bam)
     {
         std::string read_identifier = (std::string("polished_var") +
                                        ":" + var.ref_chrom +

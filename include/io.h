@@ -1,16 +1,17 @@
 #pragma once
-#include <auxiliary.h>
-#include <variant.h>
 
 #include <vector>
 #include <string>
 #include <fstream>
 
-bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, Auxiliary & info)
+#include <auxiliary.h>
+#include <variant.h>
+
+bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, input_output_information & info)
 {
     std::ifstream input_vcf;           // The candidate variants to polish
 
-    if (!open_file_success(input_vcf, info.options.candidate_file_name.c_str()))
+    if (!open_file_success(input_vcf, info.cmd_options.candidate_file_name.c_str()))
         return false;
 
     std::string line{'#'};
@@ -27,10 +28,10 @@ bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_he
     return true;
 }
 
-bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, Auxiliary & info)
+bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, input_output_information & info)
 {
     std::ofstream output_vcf;          // The polished variant as output
-    if (!open_file_success(output_vcf, (info.options.output_prefix + ".vcf").c_str()))
+    if (!open_file_success(output_vcf, (info.cmd_options.output_prefix + ".vcf").c_str()))
         return false;
 
     for (size_t hl = 0; hl < vcf_header.size(); ++hl)
@@ -82,11 +83,11 @@ bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_h
 
     // Write polished reads if specified to output file
     // -------------------------------------------------------------------------
-    if (info.options.output_polished_bam)
+    if (info.cmd_options.output_polished_bam)
     {
         seqan::BamFileOut result_bam(seqan::context(*(info.long_read_file_handles[0]))); // The optional output bam file for polished reads
 
-        if (!open_file_success(result_bam, seqan::toCString(info.options.output_prefix + "_polished_reads.bam")))
+        if (!open_file_success(result_bam, seqan::toCString(info.cmd_options.output_prefix + "_polished_reads.bam")))
         {
             std::cerr << "Did not write resulting bam file." << std::endl;
         }
