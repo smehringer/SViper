@@ -4,8 +4,10 @@
 
 #include <seqan/bam_io.h>
 
-#include <variant.h>
+#include <SViper/variant.h>
 
+namespace SViper
+{
 /*! Assigns a variant the average of identity and fuzzyness score.
  * Based on the polsihed sequence alignment given in record
  * @param record The alignment record containing the alignment of the polished
@@ -24,3 +26,4 @@ void assign_quality(seqan::BamAlignmentRecord & record,
     variant.quality = fuzzyness;
     record.mapQ = variant.quality;
 }
+} // namespace SViper

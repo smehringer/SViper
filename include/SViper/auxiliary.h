@@ -1,12 +1,14 @@
 #pragma once
-#include <basics.h>
-#include <config.h>
+#include <SViper/basics.h>
+#include <SViper/config.h>
 #include <seqan/bam_io.h>
 #include <seqan/seq_io.h>
 #include <iostream>
 #include <memory>
 #include <thread>
 
+namespace SViper
+{
 struct input_output_information{
     input_output_information() = default;
     input_output_information(const input_output_information&) = default;
@@ -80,3 +82,4 @@ bool prep_file_handles(input_output_information & info)
 
     return true;
 }
+} // namespace SViper
