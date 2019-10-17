@@ -6,12 +6,15 @@ This pipeline polishes deletions and insertions called on long read data (ONT) u
 Installation
 ------------
 
-For installation, simply clone the repo and use make to compile any utilities.
+For installation, simply clone the repo and use cmake to compile sviper or any utilities.
 
 ~~~~
 ~$ git clone --recursive git@github.com:smehringer/SViper.git
 ~$ cd SViper
-~$ make
+~$ mkdir build
+~$ cd build
+~$ cmake ..
+~$ make sviper
 ~~~~
 
 Note: You need a compiler that supports c++14.
@@ -23,6 +26,7 @@ Dependencies
 * Code so far only tested for gcc 5.4.0
 * C++14 support
 * The SeqAn C++ library (included as a submodule, no installation required)
+* CMake (minimum version 3.0.0)
 
 - - - -
 
@@ -32,21 +36,21 @@ Using SViper
 You can look at all the input requirements by calling the sviper help page:
 
 ~~~~
-~$ sviper -h
+~$ ./sviper -h
 ~~~~
 
 Examples:
 
 Call sviper
 ~~~~
-~$ sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o polished_variants
+~$ ./sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o polished_variants
 ~~~~
 This will output a `polished_variants.vcf` file, that contains all the refined variants.
 
 Sometimes it is helpful to look at the polished sequence, e.g. with the IGV browser.
 In that case you want SViper to output the polished and aligned sequences in a bam file via the option `--output-polished-bam`:
 ~~~~
-~$ sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o polished_variants --output-polished-bam
+~$ ./sviper -s short-reads.bam -l long-reads.bam -r ref.fa -c variants.vcf -o polished_variants --output-polished-bam
 ~~~~
 
 ### IMPORTANT
