@@ -1,3 +1,3 @@
 [submodule "seqan"]
-	path = seqan
+	path = extern/seqan
 	url = https://github.com/smehringer/seqan.git
