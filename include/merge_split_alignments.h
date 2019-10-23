@@ -7,8 +7,8 @@
 #include <basics.h>
 
 // This function computes the end position of the mapping
-int compute_map_end_pos(unsigned map_begin_pos,
-                        seqan::String<seqan::CigarElement<char, unsigned>> & cigar)
+inline int compute_map_end_pos(unsigned map_begin_pos,
+                               seqan::String<seqan::CigarElement<char, unsigned>> & cigar)
 {
     int len{0}; // tracks read length so far
     for (auto ce : cigar) //
@@ -18,7 +18,7 @@ int compute_map_end_pos(unsigned map_begin_pos,
 }
 
 
-unsigned compute_fragment_length(seqan::String<seqan::CigarElement<char, unsigned>> & cigar)
+inline unsigned compute_fragment_length(seqan::String<seqan::CigarElement<char, unsigned>> & cigar)
 {
     unsigned len{0}; // tracks read length so far
     for (auto ce : cigar) //
@@ -27,7 +27,7 @@ unsigned compute_fragment_length(seqan::String<seqan::CigarElement<char, unsigne
     return len;
 }
 
-unsigned get_read_begin_and_alter_cigar(seqan::BamAlignmentRecord & record)
+inline unsigned get_read_begin_and_alter_cigar(seqan::BamAlignmentRecord & record)
 {
     unsigned read_begin_pos{0};
     if ((record.cigar[0]).operation == 'H') // hard clipping
@@ -42,7 +42,7 @@ unsigned get_read_begin_and_alter_cigar(seqan::BamAlignmentRecord & record)
     return read_begin_pos;
 }
 
-unsigned get_read_end_and_alter_cigar(seqan::BamAlignmentRecord & record)
+inline unsigned get_read_end_and_alter_cigar(seqan::BamAlignmentRecord & record)
 {
     int read_end_pos{static_cast<int>(length(record.seq)) - 1};
 
@@ -62,7 +62,7 @@ unsigned get_read_end_and_alter_cigar(seqan::BamAlignmentRecord & record)
     return static_cast<unsigned>(read_end_pos);
 }
 
-void truncate_cigar_right(seqan::BamAlignmentRecord & record, int until)
+inline void truncate_cigar_right(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned cigar_pos{0};
     int read_pos{0};
@@ -106,7 +106,7 @@ void truncate_cigar_right(seqan::BamAlignmentRecord & record, int until)
     }
 }
 
-void transform_cigar_right_into_insertion(seqan::BamAlignmentRecord & record, int until)
+inline void transform_cigar_right_into_insertion(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned cigar_pos{0};
     int read_pos{0};
@@ -152,7 +152,7 @@ void transform_cigar_right_into_insertion(seqan::BamAlignmentRecord & record, in
     appendValue(record.cigar, seqan::CigarElement<char, unsigned>('I', insertion_size));
 }
 
-void truncate_cigar_left(seqan::BamAlignmentRecord & record, int until)
+inline void truncate_cigar_left(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned num_truncated_bases{0};
 
@@ -199,7 +199,7 @@ void truncate_cigar_left(seqan::BamAlignmentRecord & record, int until)
     record.beginPos = record.beginPos + num_truncated_bases;
 }
 
-void transform_cigar_left_into_insertion(seqan::BamAlignmentRecord & record, int until)
+inline void transform_cigar_left_into_insertion(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned insertion_size{0};
 
@@ -239,7 +239,7 @@ void transform_cigar_left_into_insertion(seqan::BamAlignmentRecord & record, int
     insert(record.cigar, 0, seqan::CigarElement<char, unsigned>('I', insertion_size));
 }
 
-void turn_hard_clipping_to_soft_clipping(seqan::BamAlignmentRecord & prim, seqan::BamAlignmentRecord & supp)
+inline void turn_hard_clipping_to_soft_clipping(seqan::BamAlignmentRecord & prim, seqan::BamAlignmentRecord & supp)
 {
     // Note: common hard clipping is removed from the cigar string.
     //       hard clipping in one is turned to soft clipping by appending part
@@ -356,7 +356,7 @@ void turn_hard_clipping_to_soft_clipping(seqan::BamAlignmentRecord & prim, seqan
     supp.seq = final_supp_seq;
 }
 
-uint32_t original_sequence_length(seqan::BamAlignmentRecord const & record)
+inline uint32_t original_sequence_length(seqan::BamAlignmentRecord const & record)
 {
     uint32_t sum{0};
     for (auto const & cigar : record.cigar)
@@ -365,7 +365,7 @@ uint32_t original_sequence_length(seqan::BamAlignmentRecord const & record)
     return sum;
 }
 
-seqan::BamAlignmentRecord merge_record_group(std::vector<seqan::BamAlignmentRecord> & record_group)
+inline seqan::BamAlignmentRecord merge_record_group(std::vector<seqan::BamAlignmentRecord> & record_group)
 {
     SEQAN_ASSERT(record_group.size() > 0);
 
@@ -514,8 +514,7 @@ seqan::BamAlignmentRecord merge_record_group(std::vector<seqan::BamAlignmentReco
     return final_record;
 }
 
-std::vector<seqan::BamAlignmentRecord>
-merge_alignments(std::vector<seqan::BamAlignmentRecord> const & records)
+inline std::vector<seqan::BamAlignmentRecord> merge_alignments(std::vector<seqan::BamAlignmentRecord> const & records)
 {
     std::vector<seqan::BamAlignmentRecord> merged_records;
     std::vector<seqan::BamAlignmentRecord> record_group;

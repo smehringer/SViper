@@ -1,4 +1,5 @@
 #pragma once
+
 #include <numeric>
 #include <experimental/random>
 
@@ -6,10 +7,10 @@
 
 #include <basics.h>
 
-std::pair<double, double> stats_insert_size(std::string const & bam_file_name, std::string contig_name)
+inline std::pair<double, double> stats_insert_size(std::string const & bam_file_name, std::string contig_name)
 {
     seqan::BamFileIn      bam_file;
-    seqan::BamIndex<Bai>  bam_index;
+    seqan::BamIndex<seqan::Bai>  bam_index;
 
     if (!open_file_success(bam_file, bam_file_name.c_str()))
         return {-1.0, -1.0};

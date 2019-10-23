@@ -46,7 +46,7 @@ int main(int argc, char ** argv)
         if (!record_group.empty() &&
             (record_group[record_group.size() - 1]).qName != record.qName)
         {
-            seqan::BamAlignmentRecord merged_record = seqan::merge_record_group(record_group);
+            seqan::BamAlignmentRecord merged_record = merge_record_group(record_group);
             seqan::writeRecord(bamfileOut, merged_record);
             record_group.clear();
             record_group.push_back(record);
@@ -57,7 +57,7 @@ int main(int argc, char ** argv)
         }
     }
     //process last group
-    seqan::BamAlignmentRecord merged_record = seqan::merge_record_group(record_group);
+    seqan::BamAlignmentRecord merged_record = merge_record_group(record_group);
     seqan::writeRecord(bamfileOut, merged_record);
 
     return 0;
