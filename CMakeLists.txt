@@ -105,5 +105,10 @@ target_link_libraries (stats ${SEQAN_LIBRARIES})
 # ===========================================================================
 
 #message (STATUS "Configuring tests")
-#add_subdirectory (tests)
+
+option(PACKAGE_TESTS "Build the tests" ON)
+if(PACKAGE_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
 
