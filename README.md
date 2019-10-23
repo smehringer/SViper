@@ -26,7 +26,7 @@ Dependencies
 * Code so far only tested for gcc 5.4.0
 * C++14 support
 * The SeqAn C++ library (included as a submodule, no installation required)
-* CMake (minimum version 3.0.0)
+* CMake (minimum version 3.6)
 
 - - - -
 

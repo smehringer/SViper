@@ -2,9 +2,9 @@
 #                  SViper - Polish Structural Variants
 # ===========================================================================
 
-project (sviper CXX)
+cmake_minimum_required (VERSION 3.6)
 
-cmake_minimum_required (VERSION 3.0.0)
+project (sviper CXX)
 
 # ----------------------------------------------------------------------------
 # Make "Release" the default cmake build type
