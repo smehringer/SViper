@@ -1,0 +1,87 @@
+sudo: required
+dist: xenial
+language: cpp
+
+git:
+  submodules: true
+
+cache:
+  apt: true
+  ccache: true
+
+linux-gcc-7: &linux-gcc-7
+  os: linux
+  compiler: 'g++-7'
+  addons:
+    apt:
+      sources: ['ubuntu-toolchain-r-test']
+      packages: ['g++-7']
+  before_install:
+    - export CC="gcc-7" CXX="g++-7"
+
+linux-gcc-8: &linux-gcc-8
+  os: linux
+  compiler: 'g++-8'
+  addons:
+    apt:
+      sources: ['ubuntu-toolchain-r-test']
+      packages: ['g++-8']
+  before_install:
+    - export CC="gcc-8" CXX="g++-8"
+
+linux-gcc-9: &linux-gcc-9
+  os: linux
+  compiler: 'g++-9'
+  addons:
+    apt:
+      sources: ['ubuntu-toolchain-r-test']
+      packages: ['g++-9']
+  before_install:
+    - export CC="gcc-9" CXX="g++-9"
+
+# https://docs.travis-ci.com/user/languages/c/#gcc-on-linux
+matrix:
+  include:
+  - << : *linux-gcc-9
+    env:
+      - BUILD=unit
+      - BUILD_TYPE=Release
+      - CXXFLAGS="-std=c++2a"
+      - CMAKE_VERSION=3.7.2
+  - << : *linux-gcc-8
+    env:
+      - BUILD=unit
+      - BUILD_TYPE=Release
+      - CMAKE_VERSION=3.7.2
+  - << : *linux-gcc-7
+    env:
+      - BUILD=unit
+      - BUILD_TYPE=Release
+      - CMAKE_VERSION=3.7.2
+  - << : *linux-gcc-7
+     env:
+       - BUILD=unit
+       - BUILD_TYPE=Debug
+install:
+  - |
+    HOME_BIN_PATH=`realpath ~/bin`
+    mkdir -p ${HOME_BIN_PATH}
+  - |
+    # install cmake
+    mkdir -p /tmp/cmake-download
+    wget --no-clobber --directory-prefix=/tmp/cmake-download/ https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz
+    tar -C /tmp/ -zxvf /tmp/cmake-download/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz
+    export PATH="/tmp/cmake-${CMAKE_VERSION}-Linux-x86_64/bin:${PATH}"
+  - ccache --version
+  - $CXX -v
+  - cmake --version
+before_script:
+  - mkdir build
+  - cd build
+  - cmake .. -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+script:
+  - make -k -j2
+  - |
+    ctest . --output-on-failure
+after_script:
+  - ccache -s
