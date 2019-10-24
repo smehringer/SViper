@@ -59,7 +59,7 @@ matrix:
       - BUILD_TYPE=Release
       - CMAKE_VERSION=3.7.2
   - << : *linux-gcc-7
-     env:
+    env:
        - BUILD=unit
        - BUILD_TYPE=Debug
 install:
