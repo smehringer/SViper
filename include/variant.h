@@ -271,11 +271,14 @@ inline bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & v
             variant.ref_pos_end = ref_pos + variant.sv_length;
 
         // refine info
+        std::regex svlen_neg_re("SVLEN=-[0-9]*");
         std::regex svlen_re("SVLEN=[0-9]*");
         std::regex end_re("END=[0-9]*");
         std::regex seq_re("SEQ=[A-Za-z]*");
 
-        if (std::regex_search(variant.info, svlen_re))
+        if (std::regex_search(variant.info, svlen_neg_re))
+            variant.info = std::regex_replace(variant.info, svlen_neg_re, std::string("SVLEN=-" + std::to_string(variant.sv_length)));
+        else if (std::regex_search(variant.info, svlen_re))
             variant.info = std::regex_replace(variant.info, svlen_re, std::string("SVLEN=" + std::to_string(variant.sv_length)));
         else
             variant.info.append(std::string(";SVLEN=" + std::to_string(variant.sv_length)));
