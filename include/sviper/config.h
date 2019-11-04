@@ -2,7 +2,7 @@
 
 #include <seqan/align.h>
 
-namespace SViper
+namespace sviper
 {
 //!\brief Command line option struct
 struct CmdOptions
@@ -137,4 +137,4 @@ struct SViperConfig
                 length <= golden_length + (0.8 * golden_length));
     }
 };
-} // namespace SViper
+} // namespace sviper

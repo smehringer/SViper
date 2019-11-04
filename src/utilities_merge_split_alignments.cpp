@@ -1,9 +1,9 @@
 #include <iostream>
 #include <seqan/bam_io.h>
 
-#include <SViper/merge_split_alignments.h>
+#include <sviper/merge_split_alignments.h>
 
-using namespace SViper;
+using namespace sviper;
 int main(int argc, char ** argv)
 {
     if (argc != 2)

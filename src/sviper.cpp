@@ -1,7 +1,7 @@
-#include <SViper/io.h>
-#include <SViper/sviper.h>
+#include <sviper/io.h>
+#include <sviper/sviper.h>
 
-using namespace SViper;
+using namespace sviper;
 int main(int argc, char const ** argv)
 {
     // Struct holding input_output_information information.

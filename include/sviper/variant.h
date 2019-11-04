@@ -3,9 +3,9 @@
 #include <sstream>
 #include <regex>
 
-#include <SViper/basics.h>
+#include <sviper/basics.h>
 
-namespace SViper
+namespace sviper
 {
 double const DEV_SIZE = 0.6;
 double const DEV_POS = 0.5;
@@ -305,4 +305,4 @@ inline bool refine_variant(seqan::BamAlignmentRecord const & record, Variant & v
 
     return has_variant;
 }
-} // namespace SViper
+} // namespace sviper

@@ -4,10 +4,10 @@
 #include <string>
 #include <fstream>
 
-#include <SViper/auxiliary.h>
-#include <SViper/variant.h>
+#include <sviper/auxiliary.h>
+#include <sviper/variant.h>
 
-namespace SViper
+namespace sviper
 {
 bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, input_output_information & info)
 {
@@ -102,4 +102,4 @@ bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_h
     }
     return true;
 }
-} // namespace SViper
+} // namespace sviper

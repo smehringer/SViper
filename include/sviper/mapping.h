@@ -2,7 +2,7 @@
 
 #include <seqan/align.h>
 
-namespace SViper
+namespace sviper
 {
 /*! Stores mapping information for one read pair.
  * This struct stores mapping information in the form of two pairwise alignments.
@@ -177,4 +177,4 @@ std::vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const &
 
     return mobs;
 }
-} // namespace SViper
+} // namespace sviper

@@ -8,10 +8,10 @@
 
 #include <seqan/arg_parse.h>
 
-#include <SViper/basics.h>
-#include <SViper/variant.h>
+#include <sviper/basics.h>
+#include <sviper/variant.h>
 
-using namespace SViper;
+using namespace sviper;
 // global variable of the allowed deviation until SV's are still considered to be
 // the same
 const double ALLOWED_POS_DEVIATION = 0.95; // percent of the sv_length
