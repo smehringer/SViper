@@ -4,9 +4,11 @@
 #include <string>
 #include <fstream>
 
-#include <auxiliary.h>
-#include <variant.h>
+#include <sviper/auxiliary.h>
+#include <sviper/variant.h>
 
+namespace sviper
+{
 bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_header, input_output_information & info)
 {
     std::ifstream input_vcf;           // The candidate variants to polish
@@ -100,3 +102,4 @@ bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_h
     }
     return true;
 }
+} // namespace sviper

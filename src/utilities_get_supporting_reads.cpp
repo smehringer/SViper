@@ -1,9 +1,10 @@
 #include <iostream>
 #include <fstream>
 
-#include <basics.h>
-#include <variant.h>
+#include <sviper/basics.h>
+#include <sviper/variant.h>
 
+using namespace sviper;
 int main(int /*argc*/, const char ** argv)
 {
     seqan::BamFileIn bam;

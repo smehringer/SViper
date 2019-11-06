@@ -7,8 +7,10 @@
 #include <seqan/bam_io.h>
 #include <seqan/sequence.h>
 
-#include <config.h>
+#include <sviper/config.h>
 
+namespace sviper
+{
 /*! Find the mate of a read by searching in the BAM file.
  *
  */
@@ -55,3 +57,4 @@ inline seqan::BamAlignmentRecord mateHunt(seqan::BamAlignmentRecord const & reco
     mate = seqan::BamAlignmentRecord();
     return mate;
 }
+} // namespace sviper

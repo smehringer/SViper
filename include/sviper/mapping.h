@@ -2,6 +2,8 @@
 
 #include <seqan/align.h>
 
+namespace sviper
+{
 /*! Stores mapping information for one read pair.
  * This struct stores mapping information in the form of two pairwise alignments.
  * A pairwise alignment in seqan is represented as two gapped strings (Gaps object).
@@ -175,3 +177,4 @@ std::vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const &
 
     return mobs;
 }
+} // namespace sviper

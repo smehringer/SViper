@@ -3,9 +3,11 @@
 #include <iostream>
 #include <seqan/bam_io.h>
 
-#include <config.h>
-#include <basics.h>
+#include <sviper/config.h>
+#include <sviper/basics.h>
 
+namespace sviper
+{
 // This function computes the end position of the mapping
 inline int compute_map_end_pos(unsigned map_begin_pos,
                                seqan::String<seqan::CigarElement<char, unsigned>> & cigar)
@@ -548,3 +550,4 @@ inline std::vector<seqan::BamAlignmentRecord> merge_alignments(std::vector<seqan
 
     return merged_records;
 }
+} // namespace sviper

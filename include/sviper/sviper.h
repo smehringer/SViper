@@ -6,13 +6,13 @@
 #include <thread>
 #include <vector>
 
-#include <auxiliary.h>
-#include <basics.h>
-#include <config.h>
-#include <evaluate_final_mapping.h>
-#include <merge_split_alignments.h>
-#include <polishing.h>
-#include <variant.h>
+#include <sviper/auxiliary.h>
+#include <sviper/basics.h>
+#include <sviper/config.h>
+#include <sviper/evaluate_final_mapping.h>
+#include <sviper/merge_split_alignments.h>
+#include <sviper/polishing.h>
+#include <sviper/variant.h>
 
 #include <seqan/align.h>
 #include <seqan/arg_parse.h>
@@ -21,6 +21,8 @@
 #include <seqan/seq_io.h>
 #include <seqan/graph_msa.h>
 
+namespace sviper
+{
 seqan::ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int argc, char const ** argv)
 {
     // Setup ArgumentParser.
@@ -500,3 +502,4 @@ bool polish_variant(Variant & var, input_output_information & info)
 
     return true;
 }
+} // namespace sviper

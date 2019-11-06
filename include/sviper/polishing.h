@@ -10,10 +10,12 @@
 #include <seqan/seq_io.h>
 #include <seqan/graph_msa.h>
 
-#include <config.h>
-#include <basics.h>
-#include <mapping.h>
+#include <sviper/config.h>
+#include <sviper/basics.h>
+#include <sviper/mapping.h>
 
+namespace sviper
+{
 inline void add_base_to_profile(seqan::String<seqan::ProfileChar<seqan::Dna5, double> > & profile,
                                 std::vector<unsigned> & cov_profile,
                                 unsigned pos,
@@ -342,3 +344,4 @@ seqan::Dna5String polish_to_perfection(seqan::StringSet<seqan::Dna5QString> cons
 
     return ref;
 }
+} // namespace sviper

@@ -5,8 +5,10 @@
 
 #include <seqan/bam_io.h>
 
-#include <basics.h>
+#include <sviper/basics.h>
 
+namespace sviper
+{
 inline std::pair<double, double> stats_insert_size(std::string const & bam_file_name, std::string contig_name)
 {
     seqan::BamFileIn      bam_file;
@@ -59,3 +61,4 @@ inline std::pair<double, double> stats_insert_size(std::string const & bam_file_
 
     return {insert_sizes[insert_sizes.size()/2], stdev};
 }
+} // namespace sviper

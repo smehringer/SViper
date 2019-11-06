@@ -1,7 +1,8 @@
 #include <iostream>
 
-#include <stats.h>
+#include <sviper/stats.h>
 
+using namespace sviper;
 int main(int argc, char ** argv)
 {
     if (argc != 3)

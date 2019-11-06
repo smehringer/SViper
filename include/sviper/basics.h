@@ -11,9 +11,11 @@
 #include <seqan/align.h>
 #include <seqan/graph_msa.h>
 
-#include <mateHunter.h>
-#include <config.h>
+#include <sviper/mateHunter.h>
+#include <sviper/config.h>
 
+namespace sviper
+{
 /*! Generic function for conveniently testing successful file access.
  * @param file The input file object.
  * @param name The filename to assign to the file object.
@@ -231,6 +233,7 @@ inline std::tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord
 
     return std::make_tuple(read_region_begin, read_region_end);
 }
+} // namespace sviper
 
 namespace seqan
 {
@@ -243,8 +246,10 @@ inline void appendValue(std::vector<seqan::BamAlignmentRecord> & records,
         rec.mapQ >= 5)                                    // only fairly unique hits
         records.push_back(rec);
 }
-}
+} // namespace seqan
 
+namespace sviper
+{
 /*! Appends (reference) flanks to a sequence.
  * This function appends flanks of size 'length' to 'seq'. The flank-sequence is
  * taken from the provided FASTA index 'fai_index'.
@@ -505,3 +510,4 @@ inline seqan::Dna5String build_consensus(seqan::StringSet<seqan::Dna5String> con
 
     return consensus;
 }
+} // namespace sviper
