@@ -304,6 +304,11 @@ bool polish_variant(Variant & var, input_output_information & info)
     for (unsigned i = 0; i < std::min(maximum_long_reads, supporting_records.size()); ++i)
     {
         auto region = get_read_region_boundaries(supporting_records[i], ref_region_start, ref_region_end);
+
+        assert(std::get<0>(region) >= 0);
+        assert(std::get<1>(region) >= 0);
+        assert(std::get<0>(region) <= std::get<1>(region));
+
         seqan::Dna5String reg = seqan::infix(supporting_records[i].seq, std::get<0>(region), std::get<1>(region));
 
         // For deletions, the expected size of the subsequence is that of
