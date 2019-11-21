@@ -145,7 +145,7 @@ void advance_in_cigar(unsigned & cigar_pos,
         if (stop_criterion(ref_pos, read_pos))
             break;
 
-        if ((cigar[cigar_pos]).operation == 'M')
+        if ((cigar[cigar_pos]).operation == 'M' || (cigar[cigar_pos]).operation == 'X' || (cigar[cigar_pos]).operation == '=')
         {
             // Matches/mismatches advance both the read and the reference position
             read_pos += (cigar[cigar_pos]).count;
@@ -162,6 +162,12 @@ void advance_in_cigar(unsigned & cigar_pos,
             ref_pos += (cigar[cigar_pos]).count;
         }
         // else hard-clips ('H') advance neither the read nor the reference position
+        else if ((cigar[cigar_pos]).operation == 'H')
+        {}
+        else
+        {
+            throw std::logic_error{"UNKNOWN CIGAR CHARACTER."};
+        }
 
         ++cigar_pos;
     }

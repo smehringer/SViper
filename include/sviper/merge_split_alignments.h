@@ -94,6 +94,8 @@ inline void truncate_cigar_right(seqan::BamAlignmentRecord & record, int until)
     }
 
     if ((record.cigar[length(record.cigar) - 1]).operation != 'M' &&
+        (record.cigar[length(record.cigar) - 1]).operation != 'X' &&
+        (record.cigar[length(record.cigar) - 1]).operation != '=' &&
         (record.cigar[length(record.cigar) - 1]).operation != 'I') // meaning == H,S or D
     {
         if ((record.cigar[length(record.cigar) - 1]).operation == 'D' ||
@@ -101,9 +103,13 @@ inline void truncate_cigar_right(seqan::BamAlignmentRecord & record, int until)
         {   // continuing deletion in record must be added to the large DEL event
             seqan::erase(record.cigar, length(record.cigar) - 1);
         }
-        else // meaning == S
+        else if ((record.cigar[length(record.cigar) - 1]).operation == 'S')
         {
             (record.cigar[length(record.cigar) - 1]).operation = 'I'; // add those bases
+        }
+        else
+        {
+            throw std::logic_error{"UNKNOWN CIGAR CHARACTER."};
         }
     }
 }
