@@ -116,8 +116,8 @@ void fill_profile(seqan::String<seqan::ProfileChar<seqan::Dna5, double> > & prof
     // every position. This will account for deletions and substitutions.
     // Insertions are first stored seperately because otherwise the positions
     // in read-ref-alignments are not "synchronized" and hard to handle.
-    std::vector<seqan::String<seqan::ProfileChar<seqan::Dna5, double> >> insertion_profiles;
-    std::vector<std::vector<unsigned>> insertion_cov_profiles;
+    std::vector<seqan::String<seqan::ProfileChar<seqan::Dna5, double> >> insertion_profiles{};
+    std::vector<std::vector<unsigned>> insertion_cov_profiles{};
     insertion_profiles.resize(seqan::length(profile)); // there can be an insertion after every position
     insertion_cov_profiles.resize(seqan::length(profile));
 
@@ -125,7 +125,7 @@ void fill_profile(seqan::String<seqan::ProfileChar<seqan::Dna5, double> > & prof
     // but additionally, one needs to count the number of reads that span the position
     // and do NOT display an insertion. Those are counted with non_insertion_coverage_count
     // for each read and the insertion profile is updated accordingly.
-    std::vector<unsigned> non_insertion_coverage_count;
+    std::vector<unsigned> non_insertion_coverage_count{};
     non_insertion_coverage_count.resize(seqan::length(profile));
     for (auto & cov_count : non_insertion_coverage_count)
         cov_count = 0;
@@ -239,7 +239,7 @@ inline seqan::Dna5String consensus_from_profile(seqan::String<seqan::ProfileChar
 {
     SEQAN_ASSERT(seqan::length(profile) == seqan::length(contigGaps));
 
-    seqan::Dna5String cns;
+    seqan::Dna5String cns{};
     unsigned begin = seqan::toViewPosition(contigGaps, config.ref_flank_length);
     unsigned end   = seqan::toViewPosition(contigGaps, seqan::length(seqan::source(contigGaps)) - config.ref_flank_length);
 
@@ -321,7 +321,7 @@ seqan::Dna5String polish_to_perfection(seqan::StringSet<seqan::Dna5QString> cons
                                        seqan::Dna5String ref,
                                        SViperConfig & config)
 {
-    seqan::Dna5String old_ref;
+    seqan::Dna5String old_ref{};
 
     // first, do only fix mismatches
     while (ref != old_ref && config.rounds < 20)

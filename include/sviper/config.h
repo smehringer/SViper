@@ -16,12 +16,12 @@ struct CmdOptions
     double mean_insert_size_of_short_reads{280.054}; // original coverage
     double stdev_insert_size_of_short_reads{145.162};
     int length_of_short_reads{150}; // original coverage
-    std::string long_read_file_name;
-    std::string short_read_file_name;
-    std::string candidate_file_name;
-    std::string output_prefix;
-    std::string reference_file_name;
-    std::string log_file_name;
+    std::string long_read_file_name{};
+    std::string short_read_file_name{};
+    std::string candidate_file_name{};
+    std::string output_prefix{};
+    std::string reference_file_name{};
+    std::string log_file_name{};
 
     CmdOptions(std::string long_, std::string short_, std::string candidate_, std::string ref_) :
         threads(std::thread::hardware_concurrency()),
@@ -49,11 +49,11 @@ struct SViperConfig
     bool verbose{false};
 
     // options to be set through the command line options
-    int flanking_region; // size of flanking region for breakpoints
-    int mean_coverage_of_short_reads; // original coverage
-    double mean_insert_size_of_short_reads;
-    double stdev_insert_size_of_short_reads;
-    int length_of_short_reads;
+    int flanking_region{}; // size of flanking region for breakpoints
+    int mean_coverage_of_short_reads{}; // original coverage
+    double mean_insert_size_of_short_reads{};
+    double stdev_insert_size_of_short_reads{};
+    int length_of_short_reads{};
 
     unsigned ref_flank_length{500}; // length to flank to the consensus sequence with the reference
 
@@ -74,7 +74,7 @@ struct SViperConfig
     double alpha{1}; // scaling factor such that mapping and base quality are comparable
     double mean_coverage{0}; // will be overridden every round after mapping
     double min_coverage{4};
-    std::vector<unsigned> cov_profile;
+    std::vector<unsigned> cov_profile{};
 
     /* Polishing statistics (total base count).
      * Note: The total number can exceed the length easily since bases can be

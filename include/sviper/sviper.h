@@ -129,7 +129,7 @@ seqan::ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int ar
 
 bool polish_variant(Variant & var, input_output_information & info)
 {
-    std::stringstream localLog;
+    std::stringstream localLog{};
     seqan::BamFileIn & short_read_bam = *(info.short_read_file_handles[omp_get_thread_num()]);
     seqan::BamFileIn & long_read_bam = *(info.long_read_file_handles[omp_get_thread_num()]);
     seqan::FaiIndex & faiIndex = *(info.faidx_file_handles[omp_get_thread_num()]);
@@ -187,8 +187,8 @@ bool polish_variant(Variant & var, input_output_information & info)
     SEQAN_ASSERT_LEQ(ref_region_start, ref_region_end);
 
     // get reference id in bam File
-    unsigned rID_short;
-    unsigned rID_long;
+    unsigned rID_short{};
+    unsigned rID_long{};
 
     if (!seqan::getIdByName(rID_short, seqan::contigNamesCache(seqan::context(short_read_bam)), var.ref_chrom))
     {
@@ -212,10 +212,10 @@ bool polish_variant(Variant & var, input_output_information & info)
 
     // Extract long reads
     // ---------------------------------------------------------------------
-    std::vector<seqan::BamAlignmentRecord> supporting_records;
+    std::vector<seqan::BamAlignmentRecord> supporting_records{};
 
     {
-        std::vector<seqan::BamAlignmentRecord> long_reads;
+        std::vector<seqan::BamAlignmentRecord> long_reads{};
 
         // extract overlapping the start breakpoint +-50 bp's
         seqan::viewRecords(long_reads, long_read_bam, info.long_read_bai, rID_long, var_ref_pos_sub50, var_ref_pos_add50);
@@ -295,7 +295,7 @@ bool polish_variant(Variant & var, input_output_information & info)
     // ---------------------------------------------------------------------
     localLog << "--- Cropping long reads with a buffer of +-" << info.cmd_options.flanking_region << " around variants." << std::endl;
 
-    seqan::StringSet<seqan::Dna5String> supporting_sequences;
+    seqan::StringSet<seqan::Dna5String> supporting_sequences{};
     std::vector<seqan::BamAlignmentRecord>::size_type maximum_long_reads = 5;
 
     // sort records such that the highest quality ones are chosen first
@@ -343,7 +343,7 @@ bool polish_variant(Variant & var, input_output_information & info)
 
     // Build consensus of supporting read regions
     // ---------------------------------------------------------------------
-    std::vector<double> mapping_qualities;
+    std::vector<double> mapping_qualities{};
     mapping_qualities.resize(supporting_records.size());
     for (unsigned i = 0; i < supporting_records.size(); ++i)
         mapping_qualities[i] = (supporting_records[i]).mapQ;
@@ -352,18 +352,18 @@ bool polish_variant(Variant & var, input_output_information & info)
 
     localLog << "--- Built a consensus with a MSA of length " << seqan::length(cns) << "." << std::endl;
 
-    seqan::Dna5String polished_ref;
+    seqan::Dna5String polished_ref{};
     SViperConfig config{info.cmd_options};
     config.ref_flank_length = 500;
 
     {
-        seqan::StringSet<seqan::Dna5QString> short_reads_1; // reads (first in pair)
-        seqan::StringSet<seqan::Dna5QString> short_reads_2; // mates (second in pair)
+        seqan::StringSet<seqan::Dna5QString> short_reads_1{}; // reads (first in pair)
+        seqan::StringSet<seqan::Dna5QString> short_reads_2{}; // mates (second in pair)
 
         {
             // Extract short reads in region
             // ---------------------------------------------------------------------
-            std::vector<seqan::BamAlignmentRecord> short_reads;
+            std::vector<seqan::BamAlignmentRecord> short_reads{};
             // If the breakpoints are farther apart then illumina-read-length + 2 * flanking-region,
             // then extract reads for each break point separately.
             if (ref_region_end - ref_region_start > info.cmd_options.flanking_region * 2 + info.cmd_options.length_of_short_reads)
@@ -438,7 +438,7 @@ bool polish_variant(Variant & var, input_output_information & info)
 
     // Align polished sequence to reference
     // ---------------------------------------------------------------------
-    seqan::Dna5String ref_part;
+    seqan::Dna5String ref_part{};
     seqan::readRegion(ref_part, faiIndex, ref_fai_idx,
                       std::max(1u, ref_region_start - config.ref_flank_length),
                       std::min(ref_region_end + config.ref_flank_length, static_cast<unsigned>(ref_length)));

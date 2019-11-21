@@ -252,8 +252,8 @@ inline void turn_hard_clipping_to_soft_clipping(seqan::BamAlignmentRecord & prim
     // Note: common hard clipping is removed from the cigar string.
     //       hard clipping in one is turned to soft clipping by appending part
     //       of the sequence of the other
-    decltype(prim.seq) final_prim_seq;
-    decltype(supp.seq) final_supp_seq;
+    decltype(prim.seq) final_prim_seq{};
+    decltype(supp.seq) final_supp_seq{};
 
     // beginning of alignment
     if ((prim.cigar[0]).operation == 'H')
@@ -524,8 +524,8 @@ inline seqan::BamAlignmentRecord merge_record_group(std::vector<seqan::BamAlignm
 
 inline std::vector<seqan::BamAlignmentRecord> merge_alignments(std::vector<seqan::BamAlignmentRecord> const & records)
 {
-    std::vector<seqan::BamAlignmentRecord> merged_records;
-    std::vector<seqan::BamAlignmentRecord> record_group;
+    std::vector<seqan::BamAlignmentRecord> merged_records{};
+    std::vector<seqan::BamAlignmentRecord> record_group{};
 
     for (auto const & rec : records)
     {

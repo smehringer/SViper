@@ -190,8 +190,8 @@ inline std::tuple<int, int> get_read_region_boundaries(seqan::BamAlignmentRecord
                                                        int ref_region_begin,
                                                        int ref_region_end)
 {
-    int read_region_begin;
-    int read_region_end;
+    int read_region_begin{};
+    int read_region_end{};
 
     if (ref_region_begin >= ref_region_end)
     {
@@ -315,7 +315,7 @@ inline void records_to_read_pairs(seqan::StringSet<seqan::Dna5QString> & reads1,
     records.erase(last, records.end());
 
     seqan::Dna5QString dummy_seq{}; // read sequence for dummy record is an empty string
-    seqan::CharString id1; // stores last seen id
+    seqan::CharString id1{}; // stores last seen id
 
     for (unsigned i = 0; i < length(records); ++i)
     {
@@ -404,7 +404,7 @@ inline void cut_down_high_coverage(std::vector<seqan::BamAlignmentRecord> & shor
     if (short_reads.size() == 0)
         return;
 
-    std::vector<seqan::BamAlignmentRecord> tmp;
+    std::vector<seqan::BamAlignmentRecord> tmp{};
     std::sort(short_reads.begin(), short_reads.end(), bamRecordPosLessQualityGreater());
 
     std::vector<int32_t> ends{};
@@ -483,15 +483,15 @@ inline seqan::Dna5String build_consensus(seqan::StringSet<seqan::Dna5String> con
                                          std::vector<double> const & quals) // mapping qualities
 {
     // TODO:: include base qualities from bam file
-    seqan::Align<seqan::Dna5String> align;
+    seqan::Align<seqan::Dna5String> align{};
     seqan::resize(seqan::rows(align), seqan::length(seqs));
     for (unsigned i = 0; i < seqan::length(seqs); ++i)
         seqan::assignSource(seqan::row(align, i), seqs[i]);
 
     seqan::globalMsaAlignment(align, seqan::SimpleScore(5, -3, -1, -3));
 
-    seqan::Dna5String consensus;
-    seqan::String<seqan::ProfileChar<seqan::Dna5, double> > profile;
+    seqan::Dna5String consensus{};
+    seqan::String<seqan::ProfileChar<seqan::Dna5, double> > profile{};
     seqan::resize(profile, 1);
 
     // fill profile and get maximum supported character for each position

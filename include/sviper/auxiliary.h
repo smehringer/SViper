@@ -19,16 +19,16 @@ struct input_output_information{
     // Custom constructor.
     input_output_information(CmdOptions & options_) : cmd_options(options_) {}
 
-    std::ofstream log_file;
-    CmdOptions cmd_options;
-    std::vector<std::unique_ptr<seqan::BamFileIn>> long_read_file_handles;
-    seqan::BamHeader long_read_header;   // The bam header object needed to fill bam context
-    seqan::BamIndex<seqan::Bai> long_read_bai;
-    std::vector<std::unique_ptr<seqan::BamFileIn>> short_read_file_handles;
-    seqan::BamHeader short_read_header;  // The bam header object needed to fill bam context
-    seqan::BamIndex<seqan::Bai> short_read_bai;
-    std::vector<std::unique_ptr<seqan::FaiIndex>> faidx_file_handles;
-    std::vector<seqan::BamAlignmentRecord> polished_reads; // stores records in case info.cmd_options.output-polished-bam is true
+    std::ofstream log_file{};
+    CmdOptions cmd_options{};
+    std::vector<std::unique_ptr<seqan::BamFileIn>> long_read_file_handles{};
+    seqan::BamHeader long_read_header{};   // The bam header object needed to fill bam context
+    seqan::BamIndex<seqan::Bai> long_read_bai{};
+    std::vector<std::unique_ptr<seqan::BamFileIn>> short_read_file_handles{};
+    seqan::BamHeader short_read_header{};  // The bam header object needed to fill bam context
+    seqan::BamIndex<seqan::Bai> short_read_bai{};
+    std::vector<std::unique_ptr<seqan::FaiIndex>> faidx_file_handles{};
+    std::vector<seqan::BamAlignmentRecord> polished_reads{}; // stores records in case info.cmd_options.output-polished-bam is true
 };
 
 bool prep_file_handles(input_output_information & info)

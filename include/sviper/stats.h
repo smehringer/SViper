@@ -11,19 +11,19 @@ namespace sviper
 {
 inline std::pair<double, double> stats_insert_size(std::string const & bam_file_name, std::string contig_name)
 {
-    seqan::BamFileIn      bam_file;
-    seqan::BamIndex<seqan::Bai>  bam_index;
+    seqan::BamFileIn bam_file{};
+    seqan::BamIndex<seqan::Bai> bam_index{};
 
     if (!open_file_success(bam_file, bam_file_name.c_str()))
         return {-1.0, -1.0};
     if (!open_file_success(bam_index, (bam_file_name + ".bai").c_str()))
         return {-1.0, -1.0};
 
-    seqan::BamHeader bam_header;
+    seqan::BamHeader bam_header{};
     seqan::readHeader(bam_header, bam_file);
 
-    std::vector<double> insert_sizes;
-    seqan::BamAlignmentRecord record;
+    std::vector<double> insert_sizes{};
+    seqan::BamAlignmentRecord record{};
     bool hasAlignments = false;
 
     int rID = 0;
