@@ -23,13 +23,18 @@ struct CmdOptions
     std::string reference_file_name{};
     std::string log_file_name{};
 
-    CmdOptions(std::string long_, std::string short_, std::string candidate_, std::string ref_) :
-        threads(std::thread::hardware_concurrency()),
+    CmdOptions(unsigned threads_,
+               std::string long_,
+               std::string short_,
+               std::string candidate_,
+               std::string ref_,
+               std::string output_prefix_) :
+        threads(threads_),
         long_read_file_name(long_),
         short_read_file_name(short_),
         candidate_file_name(candidate_),
-        output_prefix(candidate_ + "_polished"),
-        reference_file_name(ref_) {}
+        reference_file_name(ref_),
+        output_prefix(output_prefix_) {}
 
     CmdOptions() = default;
     CmdOptions(const CmdOptions&) = default;
