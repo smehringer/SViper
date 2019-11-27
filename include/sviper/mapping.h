@@ -19,15 +19,15 @@ struct Mapping_object
     typedef seqan::Gaps<TRead, seqan::ArrayGaps> TGapsRead;
     typedef seqan::Gaps<TRef,  seqan::ArrayGaps> TGapsRef;
 
-    TRead read;
-    TGapsRead gapsRead;
-    TGapsRef gapsRef;
+    TRead read{};
+    TGapsRead gapsRead{};
+    TGapsRef gapsRef{};
     bool read_is_rc{false}; // rc = reverse-complemented
     double mapQRead{0.0};
 
-    TRead mate;
-    TGapsRead gapsMate;
-    TGapsRef gapsRefMate;
+    TRead mate{};
+    TGapsRead gapsMate{};
+    TGapsRef gapsRefMate{};
     bool mate_is_rc{false}; // rc = reverse-complemented
     double mapQMate{0.0};
 
@@ -152,7 +152,7 @@ std::vector<Mapping_object> mapping(seqan::StringSet<seqan::Dna5QString> const &
 {
     SEQAN_ASSERT_EQ(seqan::length(reads1), seqan::length(reads2));
 
-    std::vector<Mapping_object> mobs;
+    std::vector<Mapping_object> mobs{};
     //mobs.resize(length(reads1)); TODO
 
     for (unsigned ridx = 0; ridx < seqan::length(reads1); ++ridx) // for every read (pair)

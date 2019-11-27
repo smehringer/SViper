@@ -25,7 +25,7 @@ struct Variant
     Variant(const std::string & line)
     {
         std::stringstream ss(line);
-        std::string dummy;
+        std::string dummy{};
 
         // read variant line into member variables
         ss >> ref_chrom;
@@ -138,7 +138,7 @@ struct Variant
 
     void throw_verbose_exception(std::string const & what)
     {
-        std::ostringstream os;
+        std::ostringstream os{};
         os << what << "Read: ";
         (*this).write(os);
         throw std::iostream::failure(os.str());
@@ -150,19 +150,19 @@ struct Variant
     Variant& operator=(const Variant&) = default;
     Variant& operator=(Variant&&) = default;
 
-    SV_TYPE sv_type;
+    SV_TYPE sv_type{};
     int     sv_length{-1};
-    std::string  ref_chrom;
+    std::string  ref_chrom{};
     int     ref_pos{-1};
     int     ref_pos_end{-1};
-    std::string  id;
-    std::string  ref_seq;
-    std::string  alt_seq;
+    std::string  id{};
+    std::string  ref_seq{};
+    std::string  alt_seq{};
     double  quality{0};
-    std::string  filter;
-    std::string  info;
-    std::string  format;
-    std::vector<std::string>  samples;
+    std::string  filter{};
+    std::string  info{};
+    std::string  format{};
+    std::vector<std::string>  samples{};
 
     void write(std::ostream & stream)
     {
