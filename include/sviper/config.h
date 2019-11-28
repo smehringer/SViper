@@ -10,7 +10,7 @@ struct CmdOptions
     bool verbose{false};
     bool veryVerbose{false};
     bool output_polished_bam{false};
-    unsigned threads{0};
+    unsigned threads{std::thread::hardware_concurrency()};
     int flanking_region{400}; // size of flanking region for breakpoints
     int mean_coverage_of_short_reads{36}; // original coverage
     double mean_insert_size_of_short_reads{280.054}; // original coverage
