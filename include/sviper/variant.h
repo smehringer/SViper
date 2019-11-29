@@ -95,52 +95,7 @@ struct Variant
 
         if (sv_type == SV_TYPE::DEL || sv_type == SV_TYPE::INS) // no check for variants that are not processed anyway
         {
-            // determine END position from END info tag
-            auto const end_n = info.find("END=");
-            auto const len_n = info.find("SVLEN=");
-
-            if (end_n != std::string::npos)
-            {
-                std::stringstream ss(info.substr(end_n+4, info.find(';', end_n) - end_n - 4));
-                ss >> ref_pos_end;                 // store end temporarily
-                if (ss.fail())
-                    throw_verbose_exception("VCF-ERROR. END value "+
-                                            info.substr(end_n+4, info.find(';', end_n) - end_n - 4)+
-                                            " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
-                                            " could not be read.");
-            }
-
-            if (len_n != std::string::npos &&
-                info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != "NA" &&
-                info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != ".")
-            {
-                std::stringstream ss(info.substr(len_n+6, info.find(';', len_n) - len_n - 6));
-                ss >> sv_length;
-                if (ss.fail())
-                    throw_verbose_exception("VCF-ERROR. SVLEN value "+
-                                            info.substr(len_n+6, info.find(';', len_n) - len_n - 6)+
-                                            " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
-                                            " could not be read.");
-                sv_length = std::abs(sv_length); // some tools report a negative length since bases were deleted
-
-                if (end_n == std::string::npos) // no end tag but sv_len tag
-                {
-                    if (sv_type == SV_TYPE::DEL)
-                        ref_pos_end = ref_pos + sv_length - 1;
-                    else // IMPORTANT: this is correct for <INS> but undefined for all other types which are currently not supported
-                        ref_pos_end = ref_pos;
-                }
-            }
-            else // if SVLEN is not in the info, use END (will not work for insertions...)
-            {
-                if (end_n == std::string::npos)
-                {
-                    throw_verbose_exception("VCF-ERROR."
-                                            "neither END nor SVLEN tag not found in info field.");
-                }
-
-                sv_length = ref_pos_end - ref_pos; // calculate actual length
-            }
+            update_sv_length_from_info_field();
         }
     }
 
@@ -188,6 +143,56 @@ private:
         os << what << "Read: ";
         (*this).write(os);
         throw std::iostream::failure(os.str());
+    }
+
+    void update_sv_length_from_info_field()
+    {
+        // determine END position from END info tag
+        auto const end_n = info.find("END=");
+        auto const len_n = info.find("SVLEN=");
+
+        if (end_n != std::string::npos)
+        {
+            std::stringstream ss(info.substr(end_n+4, info.find(';', end_n) - end_n - 4));
+            ss >> ref_pos_end;                 // store end temporarily
+            if (ss.fail())
+                throw_verbose_exception("VCF-ERROR. END value "+
+                                        info.substr(end_n+4, info.find(';', end_n) - end_n - 4)+
+                                        " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
+                                        " could not be read.");
+        }
+
+        if (len_n != std::string::npos &&
+            info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != "NA" &&
+            info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != ".")
+        {
+            std::stringstream ss(info.substr(len_n+6, info.find(';', len_n) - len_n - 6));
+            ss >> sv_length;
+            if (ss.fail())
+                throw_verbose_exception("VCF-ERROR. SVLEN value "+
+                                        info.substr(len_n+6, info.find(';', len_n) - len_n - 6)+
+                                        " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
+                                        " could not be read.");
+            sv_length = std::abs(sv_length); // some tools report a negative length since bases were deleted
+
+            if (end_n == std::string::npos) // no end tag but sv_len tag
+            {
+                if (sv_type == SV_TYPE::DEL)
+                    ref_pos_end = ref_pos + sv_length - 1;
+                else // IMPORTANT: this is correct for <INS> but undefined for all other types which are currently not supported
+                    ref_pos_end = ref_pos;
+            }
+        }
+        else // if SVLEN is not in the info, use END (will not work for insertions...)
+        {
+            if (end_n == std::string::npos)
+            {
+                throw_verbose_exception("VCF-ERROR."
+                                        "neither END nor SVLEN tag not found in info field.");
+            }
+
+            sv_length = ref_pos_end - ref_pos; // calculate actual length
+        }
     }
 };
 
