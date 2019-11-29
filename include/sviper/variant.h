@@ -22,6 +22,14 @@ enum SV_TYPE
 
 struct Variant
 {
+    // Constructor, destructor, and assignment
+    // -------------------------------------------------------------------------
+    Variant() = default;
+    Variant(const Variant&) = default;
+    Variant(Variant&&) = default;
+    Variant& operator=(const Variant&) = default;
+    Variant& operator=(Variant&&) = default;
+
     Variant(const std::string & line)
     {
         std::stringstream ss(line);
@@ -136,20 +144,8 @@ struct Variant
         }
     }
 
-    void throw_verbose_exception(std::string const & what)
-    {
-        std::ostringstream os{};
-        os << what << "Read: ";
-        (*this).write(os);
-        throw std::iostream::failure(os.str());
-    }
-
-    Variant() = default;
-    Variant(const Variant&) = default;
-    Variant(Variant&&) = default;
-    Variant& operator=(const Variant&) = default;
-    Variant& operator=(Variant&&) = default;
-
+    // Member variables
+    // -------------------------------------------------------------------------
     SV_TYPE sv_type{};
     int     sv_length{-1};
     std::string  ref_chrom{};
@@ -164,6 +160,8 @@ struct Variant
     std::string  format{};
     std::vector<std::string>  samples{};
 
+    // Public Member Function
+    // -------------------------------------------------------------------------
     void write(std::ostream & stream)
     {
         stream << ref_chrom
@@ -178,6 +176,18 @@ struct Variant
         for (auto sample : samples)
             stream << "\t" << sample;
         stream << "\n";
+    }
+
+private:
+    // Private functions
+    // -------------------------------------------------------------------------
+    // Make error messages more expressive by adding the full VCF record info
+    void throw_verbose_exception(std::string const & what)
+    {
+        std::ostringstream os{};
+        os << what << "Read: ";
+        (*this).write(os);
+        throw std::iostream::failure(os.str());
     }
 };
 
