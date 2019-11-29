@@ -19,8 +19,8 @@ struct CmdOptions
     std::string long_read_file_name{};
     std::string short_read_file_name{};
     std::string candidate_file_name{};
-    std::string output_prefix{};
     std::string reference_file_name{};
+    std::string output_prefix{};
     std::string log_file_name{};
 
     CmdOptions(unsigned threads_,
