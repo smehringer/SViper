@@ -18,6 +18,9 @@ int main(int argc, char const ** argv)
         !open_file_success(info.short_read_bai, (info.cmd_options.short_read_file_name + ".bai").c_str()) ||
         !open_file_success(info.log_file, (info.cmd_options.output_prefix + ".log").c_str()))
         return 1;
+
+    // Print all input options to log file. Useful for debugging when using SViper as a library and passing in options manually.
+    print_log_header(info.cmd_options, info.log_file);
     // -------------------------------------------------------------------------
     // Read variants into container // TODO:: use seqan vcf parser instead (needs to be extended)
     // -------------------------------------------------------------------------
