@@ -67,8 +67,6 @@ struct Variant
             throw_verbose_exception("VCF-ERROR. id is empty.\nLine:" + line + "\n");
         if (ref_seq.empty())
             throw_verbose_exception("VCF-ERROR. ref_seq is empty.\nLine:" + line + "\n");
-        if (alt_seq.empty())
-            throw_verbose_exception("VCF-ERROR. alt_seq is empty.\nLine:" + line + "\n");
         if (filter.empty())
             throw_verbose_exception("VCF-ERROR. filter is empty.\nLine:" + line + "\n");
         if (info.empty())
@@ -78,24 +76,41 @@ struct Variant
         if (samples.empty())
             throw_verbose_exception("VCF-ERROR. samples is empty.\nLine:" + line + "\n");
 
-        // determine sv_type from alt_seq
-        // this assumes the vcf format to be have the <TYPE> tags
-        if (alt_seq == "<DEL>")
-            sv_type = SV_TYPE::DEL;
-        else if (alt_seq == "<INS>")
-            sv_type = SV_TYPE::INS;
-        else if (alt_seq == "<DUP>")
-            sv_type = SV_TYPE::DUP;
-        else if (alt_seq == "<INV>")
-            sv_type = SV_TYPE::INV;
-        else if (alt_seq == "<TRA>")
-            sv_type = SV_TYPE::TRA;
-        else
-            sv_type = SV_TYPE::UNKOWN;
-
-        if (sv_type == SV_TYPE::DEL || sv_type == SV_TYPE::INS) // no check for variants that are not processed anyway
+        if (alt_seq.empty())
         {
-            update_sv_length_from_info_field();
+            throw_verbose_exception("VCF-ERROR. alt_seq is empty.\nLine:" + line + "\n");
+        }
+        else if (alt_seq[0] == '<')
+        {
+            // determine sv_type from tag
+            // this assumes the vcf format to be have the <TYPE> tags
+            assign_sv_type_from_chars(alt_seq.substr(1, 3));
+
+            if (sv_type == SV_TYPE::DEL || sv_type == SV_TYPE::INS) // no check for variants that are not supported
+                update_sv_length_from_info_field();
+        }
+        else // asumes we have seqeunce information given
+        {
+            auto const type_n = info.find("SVTYPE=");
+
+            if (type_n != std::string::npos)
+            {
+                assign_sv_type_from_chars(info.substr(type_n + 7, info.find(';', type_n) - type_n - 7));
+            }
+            else // assume deletion or insertion by length of ref seq and alt seq
+            {
+                if (ref_seq.size() < alt_seq.size())
+                    sv_type = SV_TYPE::INS;
+                else if (ref_seq.size() > alt_seq.size())
+                    sv_type = SV_TYPE::DEL;
+                else
+                    sv_type = SV_TYPE::UNKOWN; // probably a SNP
+            }
+
+            sv_length = std::max(ref_seq.size(), alt_seq.size());
+            ref_pos_end = ref_pos + sv_length;
+            assert(sv_length > 0); // field should not be empty
+            --sv_length;
         }
     }
 
@@ -143,6 +158,22 @@ private:
         os << what << "Read: ";
         (*this).write(os);
         throw std::iostream::failure(os.str());
+    }
+
+    void assign_sv_type_from_chars(std::string const & str)
+    {
+        if (str == "DEL")
+            sv_type = SV_TYPE::DEL;
+        else if (str == "INS")
+            sv_type = SV_TYPE::INS;
+        else if (str == "DUP")
+            sv_type = SV_TYPE::DUP;
+        else if (str == "INV")
+            sv_type = SV_TYPE::INV;
+        else if (str == "TRA")
+            sv_type = SV_TYPE::TRA;
+        else
+            sv_type = SV_TYPE::UNKOWN;
     }
 
     void update_sv_length_from_info_field()

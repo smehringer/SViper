@@ -134,7 +134,7 @@ bool polish_variant(Variant & var, input_output_information & info)
     seqan::BamFileIn & long_read_bam = *(info.long_read_file_handles[omp_get_thread_num()]);
     seqan::FaiIndex & faiIndex = *(info.faidx_file_handles[omp_get_thread_num()]);
 
-    if (var.alt_seq != "<DEL>" && var.alt_seq != "<INS>")
+    if (var.sv_type != SV_TYPE::DEL && var.sv_type != SV_TYPE::INS)
     {
         #pragma omp critical
         info.log_file << "----------------------------------------------------------------------" << std::endl
