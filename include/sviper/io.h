@@ -102,4 +102,18 @@ bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_h
     }
     return true;
 }
+
+void print_log_header(CmdOptions const & options, std::ofstream & log_file)
+{
+    log_file << "Long read file: " << options.long_read_file_name << std::endl
+             << "Short read file: " << options.short_read_file_name << std::endl
+             << "VCF file: " << options.candidate_file_name << std::endl
+             << "Reference file: " << options.reference_file_name << std::endl
+             << "Threads set: " << std::to_string(options.threads) << std::endl
+             << "Flanking region: " << std::to_string(options.flanking_region) << std::endl
+             << "Short read mean coverage: " << std::to_string(options.mean_coverage_of_short_reads) << std::endl
+             << "Insert length mean, std dev: " << std::to_string(options.mean_insert_size_of_short_reads) << ", "
+                                                << std::to_string(options.stdev_insert_size_of_short_reads) << std::endl
+             << "Short read length: " << std::to_string(options.length_of_short_reads) << std::endl;
+}
 } // namespace sviper
