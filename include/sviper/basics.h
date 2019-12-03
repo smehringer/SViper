@@ -319,6 +319,8 @@ inline void records_to_read_pairs(seqan::StringSet<seqan::Dna5QString> & reads1,
 
     for (unsigned i = 0; i < length(records); ++i)
     {
+        assert(length(records[i].seq) > 0);
+
         seqan::Dna5QString seq = records[i].seq;
         seqan::assignQualities(seq, records[i].qual);
 
