@@ -248,7 +248,7 @@ bool polish_variant(Variant & var, input_output_information & info)
                  << (int)(var.sv_length + DEV_SIZE * var.sv_length) << " bp's" << std::endl;
 
         for (auto const & rec : long_reads)
-            if (record_supports_variant(rec, var))
+            if (record_supports_variant(rec, var) && length(rec.seq) > 0 /*sequence information is given*/)
                 supporting_records.push_back(rec);
 
         if (supporting_records.size() == 0)
@@ -263,7 +263,7 @@ bool polish_variant(Variant & var, input_output_information & info)
             localLog << "--- After merging " << long_reads.size() << " read(s) remain(s)." << std::endl;
 
             for (auto const & rec : long_reads)
-                if (record_supports_variant(rec, var))
+                if (record_supports_variant(rec, var) && length(rec.seq) > 0 /*sequence information is given*/)
                     supporting_records.push_back(rec);
 
             if (supporting_records.size() == 0) // there are none at all
@@ -308,6 +308,7 @@ bool polish_variant(Variant & var, input_output_information & info)
         assert(std::get<0>(region) >= 0);
         assert(std::get<1>(region) >= 0);
         assert(std::get<0>(region) <= std::get<1>(region));
+        assert(std::get<1>(region) - std::get<0>(region) <= static_cast<int>(length(supporting_records[i].seq)));
 
         seqan::Dna5String reg = seqan::infix(supporting_records[i].seq, std::get<0>(region), std::get<1>(region));
 
