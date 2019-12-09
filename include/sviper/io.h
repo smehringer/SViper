@@ -70,11 +70,11 @@ bool write_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_h
             output_vcf << "##FILTER=<ID=FAIL2,Description=\"No long reads support the variant.\">" << std::endl;
             output_vcf << "##FILTER=<ID=FAIL3,Description=\"The long read regions do not fit.\">" << std::endl;
             output_vcf << "##FILTER=<ID=FAIL4,Description=\"Not enough short reads.\">" << std::endl;
-            output_vcf << "##FILTER=<ID=FAIL5,Description=\"The variant was polished away." << std::endl;
+            output_vcf << "##FILTER=<ID=FAIL5,Description=\"The variant was polished away.\">" << std::endl;
             output_vcf << "##FILTER=<ID=FAIL6,Description=\"The variant reference name does not exist in the " <<
-                          "short read BAM file." << std::endl;
+                          "short read BAM file.\">" << std::endl;
             output_vcf << "##FILTER=<ID=FAIL7,Description=\"The variant reference name does not exist in the " <<
-                          "long read BAM file." << std::endl;
+                          "long read BAM file.\">" << std::endl;
         }
 
         output_vcf << vcf_header[hl] << std::endl;
