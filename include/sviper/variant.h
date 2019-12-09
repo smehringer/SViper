@@ -22,6 +22,14 @@ enum SV_TYPE
 
 struct Variant
 {
+    // Constructor, destructor, and assignment
+    // -------------------------------------------------------------------------
+    Variant() = default;
+    Variant(const Variant&) = default;
+    Variant(Variant&&) = default;
+    Variant& operator=(const Variant&) = default;
+    Variant& operator=(Variant&&) = default;
+
     Variant(const std::string & line)
     {
         std::stringstream ss(line);
@@ -59,8 +67,6 @@ struct Variant
             throw_verbose_exception("VCF-ERROR. id is empty.\nLine:" + line + "\n");
         if (ref_seq.empty())
             throw_verbose_exception("VCF-ERROR. ref_seq is empty.\nLine:" + line + "\n");
-        if (alt_seq.empty())
-            throw_verbose_exception("VCF-ERROR. alt_seq is empty.\nLine:" + line + "\n");
         if (filter.empty())
             throw_verbose_exception("VCF-ERROR. filter is empty.\nLine:" + line + "\n");
         if (info.empty())
@@ -70,86 +76,46 @@ struct Variant
         if (samples.empty())
             throw_verbose_exception("VCF-ERROR. samples is empty.\nLine:" + line + "\n");
 
-        // determine sv_type from alt_seq
-        // this assumes the vcf format to be have the <TYPE> tags
-        if (alt_seq == "<DEL>")
-            sv_type = SV_TYPE::DEL;
-        else if (alt_seq == "<INS>")
-            sv_type = SV_TYPE::INS;
-        else if (alt_seq == "<DUP>")
-            sv_type = SV_TYPE::DUP;
-        else if (alt_seq == "<INV>")
-            sv_type = SV_TYPE::INV;
-        else if (alt_seq == "<TRA>")
-            sv_type = SV_TYPE::TRA;
-        else
-            sv_type = SV_TYPE::UNKOWN;
-
-        if (sv_type == SV_TYPE::DEL || sv_type == SV_TYPE::INS) // no check for variants that are not processed anyway
+        if (alt_seq.empty())
         {
-            // determine END position from END info tag
-            auto const end_n = info.find("END=");
-            auto const len_n = info.find("SVLEN=");
+            throw_verbose_exception("VCF-ERROR. alt_seq is empty.\nLine:" + line + "\n");
+        }
+        else if (alt_seq[0] == '<')
+        {
+            // determine sv_type from tag
+            // this assumes the vcf format to be have the <TYPE> tags
+            assign_sv_type_from_chars(alt_seq.substr(1, 3));
 
-            if (end_n != std::string::npos)
+            if (sv_type == SV_TYPE::DEL || sv_type == SV_TYPE::INS) // no check for variants that are not supported
+                update_sv_length_from_info_field();
+        }
+        else // asumes we have seqeunce information given
+        {
+            auto const type_n = info.find("SVTYPE=");
+
+            if (type_n != std::string::npos)
             {
-                std::stringstream ss(info.substr(end_n+4, info.find(';', end_n) - end_n - 4));
-                ss >> ref_pos_end;                 // store end temporarily
-                if (ss.fail())
-                    throw_verbose_exception("VCF-ERROR. END value "+
-                                            info.substr(end_n+4, info.find(';', end_n) - end_n - 4)+
-                                            " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
-                                            " could not be read.");
+                assign_sv_type_from_chars(info.substr(type_n + 7, info.find(';', type_n) - type_n - 7));
+            }
+            else // assume deletion or insertion by length of ref seq and alt seq
+            {
+                if (ref_seq.size() < alt_seq.size())
+                    sv_type = SV_TYPE::INS;
+                else if (ref_seq.size() > alt_seq.size())
+                    sv_type = SV_TYPE::DEL;
+                else
+                    sv_type = SV_TYPE::UNKOWN; // probably a SNP
             }
 
-            if (len_n != std::string::npos &&
-                info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != "NA" &&
-                info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != ".")
-            {
-                std::stringstream ss(info.substr(len_n+6, info.find(';', len_n) - len_n - 6));
-                ss >> sv_length;
-                if (ss.fail())
-                    throw_verbose_exception("VCF-ERROR. SVLEN value "+
-                                            info.substr(len_n+6, info.find(';', len_n) - len_n - 6)+
-                                            " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
-                                            " could not be read.");
-                sv_length = std::abs(sv_length); // some tools report a negative length since bases were deleted
-
-                if (end_n == std::string::npos) // no end tag but sv_len tag
-                {
-                    if (sv_type == SV_TYPE::DEL)
-                        ref_pos_end = ref_pos + sv_length - 1;
-                    else // IMPORTANT: this is correct for <INS> but undefined for all other types which are currently not supported
-                        ref_pos_end = ref_pos;
-                }
-            }
-            else // if SVLEN is not in the info, use END (will not work for insertions...)
-            {
-                if (end_n == std::string::npos)
-                {
-                    throw_verbose_exception("VCF-ERROR."
-                                            "neither END nor SVLEN tag not found in info field.");
-                }
-
-                sv_length = ref_pos_end - ref_pos; // calculate actual length
-            }
+            sv_length = std::max(ref_seq.size(), alt_seq.size());
+            ref_pos_end = ref_pos + sv_length;
+            assert(sv_length > 0); // field should not be empty
+            --sv_length;
         }
     }
 
-    void throw_verbose_exception(std::string const & what)
-    {
-        std::ostringstream os{};
-        os << what << "Read: ";
-        (*this).write(os);
-        throw std::iostream::failure(os.str());
-    }
-
-    Variant() = default;
-    Variant(const Variant&) = default;
-    Variant(Variant&&) = default;
-    Variant& operator=(const Variant&) = default;
-    Variant& operator=(Variant&&) = default;
-
+    // Member variables
+    // -------------------------------------------------------------------------
     SV_TYPE sv_type{};
     int     sv_length{-1};
     std::string  ref_chrom{};
@@ -164,6 +130,8 @@ struct Variant
     std::string  format{};
     std::vector<std::string>  samples{};
 
+    // Public Member Function
+    // -------------------------------------------------------------------------
     void write(std::ostream & stream)
     {
         stream << ref_chrom
@@ -178,6 +146,84 @@ struct Variant
         for (auto sample : samples)
             stream << "\t" << sample;
         stream << "\n";
+    }
+
+private:
+    // Private functions
+    // -------------------------------------------------------------------------
+    // Make error messages more expressive by adding the full VCF record info
+    void throw_verbose_exception(std::string const & what)
+    {
+        std::ostringstream os{};
+        os << what << "Read: ";
+        (*this).write(os);
+        throw std::iostream::failure(os.str());
+    }
+
+    void assign_sv_type_from_chars(std::string const & str)
+    {
+        if (str == "DEL")
+            sv_type = SV_TYPE::DEL;
+        else if (str == "INS")
+            sv_type = SV_TYPE::INS;
+        else if (str == "DUP")
+            sv_type = SV_TYPE::DUP;
+        else if (str == "INV")
+            sv_type = SV_TYPE::INV;
+        else if (str == "TRA")
+            sv_type = SV_TYPE::TRA;
+        else
+            sv_type = SV_TYPE::UNKOWN;
+    }
+
+    void update_sv_length_from_info_field()
+    {
+        // determine END position from END info tag
+        auto const end_n = info.find("END=");
+        auto const len_n = info.find("SVLEN=");
+
+        if (end_n != std::string::npos)
+        {
+            std::stringstream ss(info.substr(end_n+4, info.find(';', end_n) - end_n - 4));
+            ss >> ref_pos_end;                 // store end temporarily
+            if (ss.fail())
+                throw_verbose_exception("VCF-ERROR. END value "+
+                                        info.substr(end_n+4, info.find(';', end_n) - end_n - 4)+
+                                        " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
+                                        " could not be read.");
+        }
+
+        if (len_n != std::string::npos &&
+            info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != "NA" &&
+            info.substr(len_n+6, info.find(';', len_n) - len_n - 6) != ".")
+        {
+            std::stringstream ss(info.substr(len_n+6, info.find(';', len_n) - len_n - 6));
+            ss >> sv_length;
+            if (ss.fail())
+                throw_verbose_exception("VCF-ERROR. SVLEN value "+
+                                        info.substr(len_n+6, info.find(';', len_n) - len_n - 6)+
+                                        " of variant " + ref_chrom + ":" + std::to_string(ref_pos) +
+                                        " could not be read.");
+            sv_length = std::abs(sv_length); // some tools report a negative length since bases were deleted
+
+            if (end_n == std::string::npos) // no end tag but sv_len tag
+            {
+                if (sv_type == SV_TYPE::DEL)
+                    ref_pos_end = ref_pos + sv_length - 1;
+                else // IMPORTANT: this is correct for <INS> but undefined for all other types which are currently not supported
+                    ref_pos_end = ref_pos;
+            }
+        }
+        else // if SVLEN is not in the info, use END (will not work for insertions...)
+        {
+            if (end_n == std::string::npos)
+            {
+                throw_verbose_exception("VCF-ERROR."
+                                        "neither END nor SVLEN tag not found in info field.");
+            }
+
+            sv_length = ref_pos_end - ref_pos; // calculate actual length
+        }
     }
 };
 
