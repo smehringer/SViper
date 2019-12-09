@@ -23,7 +23,7 @@ void assign_quality(seqan::BamAlignmentRecord & record,
     double error_rate = ((double)length(record.cigar) - 1.0)/ (config.flanking_region * 2.0);
     double fuzzyness = (1.0 - error_rate/0.15) * 100.0;
 
-    variant.quality = fuzzyness;
+    variant.quality = std::max(fuzzyness, 0.0);
     record.mapQ = variant.quality;
 }
 } // namespace sviper
