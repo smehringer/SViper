@@ -103,13 +103,15 @@ There are several requirements for using the polishing:
 
 ### VCF Output - the FAIL codes explained
 
-* FAIL1: There are no long reads at all in the reference region indicated by the variant. Neither at the start location (nor at the end of the deletion).
-* FAIL2: There are no supporting long reads for a specific variant. This means that if you are for example searching for a deletion of size 300 hundred, there are no long reads that have a deletion around the location of interest or the deletion is too large or too small.
-* FAIL3: After selection supporting long reads, those reads are cropped around the potential variant. For a good consensus it is necessary that the variant does not lie at the end of a long read. Cropped reads (regions) that are too small because the flanking region is not large enough are discarded. If all reads have been discarded, `FAIL3` appears.
-* FAIL4: There are not enough short reads in the area of the variant. SViper requires at least 20 short reads to be found in the area of the variant which corresponds to a short read median coverage of about 10.
-* FAIL5: After polishing the long-read-consensus with the short reads, a variant similar to the one of interest could not be reconstructed. 
+* **FAIL1**: There are no long reads at all in the reference region indicated by the variant. Neither at the start location (nor at the end of the deletion).
+* **FAIL2**: There are no supporting long reads for a specific variant. This means that if you are for example searching for a deletion of size 300 hundred, there are no long reads that have a deletion around the location of interest or the deletion is too large or too small.
+* **FAIL3**: After selection supporting long reads, those reads are cropped around the potential variant. For a good consensus it is necessary that the variant does not lie at the end of a long read. Cropped reads (regions) that are too small because the flanking region is not large enough are discarded. If all reads have been discarded, `FAIL3` appears.
+* **FAIL4**: There are not enough short reads in the area of the variant. SViper requires at least 20 short reads to be found in the area of the variant which corresponds to a short read median coverage of about 10.
+* **FAIL5**: After polishing the long-read-consensus with the short reads, a variant similar to the one of interest could not be reconstructed. 
 
-Note that a good start to check for issues in your data, interesting variants, or possible bugs in SViper is to use the [IGV Browser](https://software.broadinstitute.org/software/igv/). Upload your short and long read BAM files and check the variant locations of interest. With the option `--output-polished-bam` you can even output the polished reads and load them in IGV too. 
+Note that a good start to check for issues in your data, interesting variants, or possible bugs in SViper is to use the [IGV Browser](https://software.broadinstitute.org/software/igv/). Upload your short and long read BAM files and check the variant locations of interest. With the option `--output-polished-bam` you can even output the polished reads and load them in IGV too. This could look like the following:
+
+[sviper_IGV.pdf](https://github.com/smehringer/SViper/files/9451618/sviper_IGV.pdf)
 
 ### Utilities
 
