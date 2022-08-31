@@ -27,7 +27,7 @@ seqan::ArgumentParser::ParseResult parseCommandLine(CmdOptions & options, int ar
 {
     // Setup ArgumentParser.
     seqan::ArgumentParser parser("SViper");
-    setVersion(parser, "2.0.0");
+    setVersion(parser, "2.1.0");
 
     seqan::addOption(parser, seqan::ArgParseOption(
         "c", "candidate-vcf",
