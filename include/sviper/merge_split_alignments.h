@@ -114,6 +114,15 @@ inline void truncate_cigar_right(seqan::BamAlignmentRecord & record, int until)
     }
 }
 
+// we have a supp record (`record`) that starts before the primary record (begin position `until`)
+// e.g.      XXXXXXXXXXXXXX
+//                  YYYYYYYYYYYYYYYYYYYYYY
+// We want to change the cigar of `record` in a way that everything that overlaps with the primary record is put
+// into a big insertion:
+// e.g.      XXXXXXXI
+//                  YYYYYYYYYYYYYYYYYYYYYY
+// s.t. both cigar strings can be merged into one merged alignment:
+// e.g.      XXXXXXXIYYYYYYYYYYYYYYYYYYYYYY
 inline void transform_cigar_right_into_insertion(seqan::BamAlignmentRecord & record, int until)
 {
     unsigned cigar_pos{0};
@@ -125,19 +134,11 @@ inline void transform_cigar_right_into_insertion(seqan::BamAlignmentRecord & rec
                      record.cigar,
                      [&until] (int ref, int /*read*/) {return ref >= until;});
 
-//    if (cigar_pos == 0) // no advancement happened. only case: until=1
-//    {
-//        seqan::erase(record.cigar, cigar_pos + 1, length(record.cigar)); // seqan::erase the rest
-//        record.cigar[0].count = until;
-//        return;
-//    }
+    SEQAN_ASSERT_NEQ(cigar_pos, 0u); // no advancement would have happened. edge case: until=1?
     --cigar_pos; // move to cigar operation that over stepped
     unsigned insertion_size{0};
 
-    if (ref_pos == until)
-    {
-        --cigar_pos;
-    }
+    // if (ref_pos == until) we don't need to do anything
     if (ref_pos > until)
     {
         if ((record.cigar[cigar_pos]).operation == 'M')
@@ -147,6 +148,7 @@ inline void transform_cigar_right_into_insertion(seqan::BamAlignmentRecord & rec
 
     if ((record.cigar[cigar_pos]).operation == 'I')
     {
+        SEQAN_ASSERT_NEQ(cigar_pos, 0u);
         --cigar_pos;
     }
 
@@ -448,13 +450,14 @@ inline seqan::BamAlignmentRecord merge_record_group(std::vector<seqan::BamAlignm
 
             // 3) Check if a Deletion or a Insertion must be added to connect the two alignments.
             //    This depends on the reference positions.
-            if (compute_map_end_pos(supp_record.beginPos, supp_record.cigar) < prim_record.beginPos) // DEL
+            auto const supp_map_end_pos = compute_map_end_pos(supp_record.beginPos, supp_record.cigar);
+            if (supp_map_end_pos < prim_record.beginPos) // DEL
             {
                 // 4) concatenate cropped cigar string to one big one with a deletion inside
                 int deletion_size = prim_record.beginPos - compute_map_end_pos(supp_record.beginPos, supp_record.cigar);
                 appendValue(supp_record.cigar, seqan::CigarElement<char, unsigned>('D', deletion_size));
             }
-            else if (compute_map_end_pos(supp_record.beginPos, supp_record.cigar) > prim_record.beginPos)// INS
+            else if (supp_map_end_pos > prim_record.beginPos) // INS
             {
                 // 4) Compute bases that must inserted for the alignment to fit
                 transform_cigar_right_into_insertion(supp_record, prim_record.beginPos);
