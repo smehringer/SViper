@@ -32,6 +32,7 @@ bool read_vcf(std::vector<Variant> & variants, std::vector<std::string> & vcf_he
 
 void write_custom_filters(std::ofstream & output_vcf)
 {
+    output_vcf << "##FILTER=<ID=SKIP,Description=\"The variant is skipped by SViper.\">" << std::endl;
     output_vcf << "##FILTER=<ID=FAIL0,Description=\"The fasta index has no entry for the given "
                << "reference name of the variant.\">" << std::endl;
     output_vcf << "##FILTER=<ID=FAIL1,Description=\"No long reads in variant region.\">" << std::endl;
